@@ -20,8 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
+    - run: git fetch --no-tags --prune --depth=1 origin +refs/heads/master:refs/remotes/origin/master
     - uses: ./
     - name: echo env var previously set
       if: always()

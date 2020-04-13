@@ -12,13 +12,13 @@ async function run(): Promise<void> {
       const match = await ruleMatchesChange(rule)
       if (match) {
         core.info('Diffing rule detected changes.')
-        core.exportVariable('DIFF_DETECTED', 'true');
+        core.exportVariable('DIFF_DETECTED', 'true')
         return
       }
     }
 
     core.info('No changes detected.')
-    core.exportVariable('DIFF_DETECTED', 'false');
+    core.exportVariable('DIFF_DETECTED', 'false')
   } catch (err) {
     core.setFailed(err.message)
   }

@@ -10,6 +10,7 @@ This action can be used in a job step to filter paths based on rules that produc
 runs-on: ubuntu-latest
 steps:
 - uses: actions/checkout@v2
+- run: git fetch --no-tags --prune --depth=1 origin +refs/heads/master:refs/remotes/origin/master
 - uses: lostick/conditional-diffing-action@master
 - name: Setup go
   if: env.DIFF_DETECTED

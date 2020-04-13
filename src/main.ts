@@ -5,7 +5,7 @@ import {ruleMatchesChange} from './finder'
 
 async function run(): Promise<void> {
   try {
-    core.info('Parsing rules in the yaml manifest.')
+    core.debug('Parsing rules in the yaml manifest.')
     const rules = await getYamlRules()
 
     for (const rule of rules) {

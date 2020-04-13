@@ -2964,18 +2964,18 @@ const finder_1 = __webpack_require__(420);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            core.info('Parsing rules in the yaml manifest.');
+            core.debug('Parsing rules in the yaml manifest.');
             const rules = yield helpers_1.getYamlRules();
             for (const rule of rules) {
                 const match = yield finder_1.ruleMatchesChange(rule);
                 if (match) {
                     core.info('Diffing rule detected changes.');
-                    core.setOutput('deploy-needed', 'true');
+                    core.exportVariable('DIFF_DETECTED', 'true');
                     return;
                 }
             }
             core.info('No changes detected.');
-            core.setOutput('deploy-needed', 'false');
+            core.exportVariable('DIFF_DETECTED', 'false');
         }
         catch (err) {
             core.setFailed(err.message);

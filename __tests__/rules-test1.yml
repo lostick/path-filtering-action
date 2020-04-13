@@ -1,0 +1,5 @@
+rules:
+- paths:
+  - __tests__/fixtures/dummy1
+- paths:
+  - __tests__/fixtures/dummy1/.test

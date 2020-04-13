@@ -1,0 +1,5 @@
+rules:
+- paths:
+  - __tests__/fixtures/dummy4
+  must_include:
+  - __tests__/fixtures/dummy4/envs/staging

@@ -1,0 +1,9 @@
+name: Conditional Diffing
+description: Filter paths based on diffing rules
+author: Laurent Godet
+branding:
+  icon: 'list'
+  color: 'yellow'
+runs:
+  using: 'node12'
+  main: 'dist/index.js'

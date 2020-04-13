@@ -1,0 +1,5 @@
+rules:
+- paths:
+  - ./src
+- paths:
+  - ./dist

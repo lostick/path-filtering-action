@@ -11,7 +11,7 @@ runs-on: ubuntu-latest
 steps:
 - uses: actions/checkout@v2
 - run: git fetch --no-tags --prune --depth=1 origin +refs/heads/master:refs/remotes/origin/master
-- uses: lostick/conditional-diffing-action@master
+- uses: lostick/conditional-diffing-action@v0.1.0
 - name: Setup go
   if: env.DIFF_DETECTED
   uses: actions/setup-go@v1

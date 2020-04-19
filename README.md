@@ -7,9 +7,19 @@ The step sets `DIFF_DETECTED` environment variable as true or false, which can t
 
 ## Usage
 
+1. Add rules in a new `.github/rules.yml` file
+
+```
+rules:
+- paths:
+  - ./src
+```
+
+2. Update your workflow
+
 ```yaml
 steps:
-# Make sure to fetch all branches in order to do run git diff
+# Make sure to fetch all branches or diffing commands won't run
 - uses: actions/checkout@v2
 - run: git fetch --no-tags --prune --depth=1 origin +refs/heads/master:refs/remotes/origin/master
 

@@ -61,43 +61,6 @@ describe('test diffing rules', () => {
     expect(matches).toBeTruthy()
   })
 
-  test('match diff change on parent dir with must include condition', async () => {
-    let rule = {
-      paths: ['__tests__/fixtures/dummy3'],
-      must_include: ['__tests__/fixtures/dummy3/envs/preprod']
-    }
-    const diff = await finder.getDiff(finder.buildOptions(rule))
-    const fillFiles = diff.files.map(elem => elem.file)
-    expect(fillFiles).toContainEqual('__tests__/fixtures/dummy3/test')
-    expect(diff.changed).toBe(2)
-    expect(diff.insertions).toBe(1)
-
-    const satisfiesMustInclude = finder.satisfiesMustInclude(rule)
-    expect(satisfiesMustInclude).toBeTruthy()
-
-    const match = await finder.ruleMatchesChange(rule)
-    expect(match).toBeTruthy()
-  })
-
-  test('no diff change on parent dir with must include condition', async () => {
-    let rule = {
-      paths: ['__tests__/fixtures/dummy3'],
-      must_include: ['__tests__/fixtures/dummy3/envs/staging']
-    }
-
-    const diff = await finder.getDiff(finder.buildOptions(rule))
-    const fillFiles = diff.files.map(elem => elem.file)
-    expect(fillFiles).toContainEqual('__tests__/fixtures/dummy3/test')
-    expect(diff.changed).toBe(2)
-    expect(diff.insertions).toBe(1)
-
-    const satisfiesMustInclude = finder.satisfiesMustInclude(rule)
-    expect(satisfiesMustInclude).not.toBeTruthy()
-
-    const match = await finder.ruleMatchesChange(rule)
-    expect(match).not.toBeTruthy()
-  })
-
   test('no diff change on unknown parent dir', async () => {
     let rule = {
       paths: ['__tests__/fixtures/dummy-does-not-exist']
@@ -120,26 +83,6 @@ describe('test diffing yaml manifests', () => {
     for (const rule of rules) {
       let match = await finder.ruleMatchesChange(rule)
       expect(match).toBeTruthy()
-    }
-  })
-
-  test('match diff change on parent dir with must include condition', async () => {
-    const file = '__tests__/rules-test2.yml'
-    const rules = await helpers.getYamlRules(file)
-
-    for (const rule of rules) {
-      let match = await finder.ruleMatchesChange(rule)
-      expect(match).toBeTruthy()
-    }
-  })
-
-  test('no diff change on parent dir with must include condition', async () => {
-    const file = '__tests__/rules-test3.yml'
-    const rules = await helpers.getYamlRules(file)
-
-    for (const rule of rules) {
-      let match = await finder.ruleMatchesChange(rule)
-      expect(match).not.toBeTruthy()
     }
   })
 })

@@ -1,5 +1,4 @@
 import * as core from '@actions/core'
-import fs from 'fs'
 
 import gitP, {SimpleGit} from 'simple-git/promise'
 import {DiffResult} from 'simple-git/typings/response'
@@ -15,10 +14,9 @@ export async function ruleMatchesChange(rule): Promise<boolean> {
   const diff = await getDiff(options)
   core.debug(`Diffing with options ${options}`)
 
-  if (diff.changed > 0 && satisfiesMustInclude(rule)) {
+  if (diff.changed > 0) {
     const diffedFiles = diff.files.map(elem => elem.file)
     core.info(`Changed files: ${diffedFiles}`)
-
     return true
   }
 
@@ -36,22 +34,4 @@ export async function getDiff(extraOptions: string[]): Promise<DiffResult> {
 export function buildOptions(rule: object): string[] {
   const fullPaths: string[] = rule['paths'].map(el => `${ROOT_DIR}/${el}`)
   return fullPaths.length ? ['--', ...fullPaths] : []
-}
-
-/** Processes must_include in the rule if it's defined */
-export function satisfiesMustInclude(rule: object): boolean {
-  if ('must_include' in rule && rule['must_include'].length > 0) {
-    core.debug('Iterating over must_include elements')
-
-    for (const includePath of rule['must_include']) {
-      if (fs.existsSync(includePath)) {
-        core.info(`Path found in must_include: ${includePath}`)
-        return true
-      }
-    }
-
-    return false
-  }
-
-  return true
 }

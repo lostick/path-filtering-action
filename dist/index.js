@@ -3590,7 +3590,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
-const fs_1 = __importDefault(__webpack_require__(747));
 const promise_1 = __importDefault(__webpack_require__(57));
 const helpers_1 = __webpack_require__(441);
 exports.ROOT_DIR = helpers_1.getRootDir();
@@ -3601,7 +3600,7 @@ function ruleMatchesChange(rule) {
         const options = buildOptions(rule);
         const diff = yield getDiff(options);
         core.debug(`Diffing with options ${options}`);
-        if (diff.changed > 0 && satisfiesMustInclude(rule)) {
+        if (diff.changed > 0) {
             const diffedFiles = diff.files.map(elem => elem.file);
             core.info(`Changed files: ${diffedFiles}`);
             return true;
@@ -3625,21 +3624,6 @@ function buildOptions(rule) {
     return fullPaths.length ? ['--', ...fullPaths] : [];
 }
 exports.buildOptions = buildOptions;
-/** Processes must_include in the rule if it's defined */
-function satisfiesMustInclude(rule) {
-    if ('must_include' in rule && rule['must_include'].length > 0) {
-        core.debug('Iterating over must_include elements');
-        for (const includePath of rule['must_include']) {
-            if (fs_1.default.existsSync(includePath)) {
-                core.info(`Path found in must_include: ${includePath}`);
-                return true;
-            }
-        }
-        return false;
-    }
-    return true;
-}
-exports.satisfiesMustInclude = satisfiesMustInclude;
 
 
 /***/ }),

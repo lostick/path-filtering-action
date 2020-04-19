@@ -2,6 +2,7 @@ import * as helpers from '../src/helpers'
 import * as finder from '../src/finder'
 
 import fs from 'fs'
+import {YAMLException} from 'js-yaml'
 
 const FIXTURES_DIR = `${finder.ROOT_DIR}/__tests__/fixtures`
 
@@ -76,6 +77,16 @@ describe('test diffing rules', () => {
 })
 
 describe('test diffing yaml manifests', () => {
+  test('rules config file not found', async () => {
+    const file = '__tests__/rules-not-found.yml'
+    await expect(helpers.getYamlRules(file)).rejects.toThrowError()
+  })
+
+  test('rules invalid yaml file', async () => {
+    const file = '__tests__/rules-invalid-yaml.yml'
+    await expect(helpers.getYamlRules(file)).rejects.toThrow(YAMLException)
+  })
+
   test('match diff change on parent dir', async () => {
     const file = '__tests__/rules-test1.yml'
     const rules = await helpers.getYamlRules(file)

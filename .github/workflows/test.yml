@@ -2,6 +2,11 @@ name: build-test
 
 on:
   pull_request:
+    types:
+    - synchronize
+    - opened
+    - reopened
+    - ready_for_review
   push:
 
 jobs:
@@ -9,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - run: git fetch --no-tags --prune --depth=1 origin +refs/heads/master:refs/remotes/origin/master
     - run: |
         # set default git config for unit tests
         git config --global user.email "gha@ci"

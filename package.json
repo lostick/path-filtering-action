@@ -1,5 +1,5 @@
 {
-  "name": "conditional-diffing",
+  "name": "conditional-diffing-action",
   "version": "0.0.0",
   "private": true,
   "description": "Filter paths based on diffing rules",
@@ -15,7 +15,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lostick/conditional-diffing=action.git"
+    "url": "git+https://github.com/lostick/conditional-diffing-action.git"
   },
   "keywords": [
     "actions",

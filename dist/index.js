@@ -2964,8 +2964,9 @@ const finder_1 = __webpack_require__(420);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
+            const configFile = core.getInput('config_file', { required: true });
             core.debug('Parsing rules in the yaml manifest.');
-            const rules = yield helpers_1.getYamlRules();
+            const rules = yield helpers_1.getYamlRules(configFile);
             for (const rule of rules) {
                 const match = yield finder_1.ruleMatchesChange(rule);
                 if (match) {

@@ -1,9 +1,17 @@
 name: Conditional Diffing
 description: Filter paths based on diffing rules
-author: Laurent Godet
-branding:
-  icon: 'list'
-  color: 'yellow'
+author: lostick
+
+inputs:
+  config_file:
+    description: Path to a custom diffing rules file
+    default: ./github/rules2.yml
+    required: true
+
 runs:
   using: 'node12'
   main: 'dist/index.js'
+
+branding:
+  icon: list
+  color: gray-dark

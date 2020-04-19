@@ -22,7 +22,7 @@ steps:
 - uses: actions/checkout@v2
 - run: git fetch --no-tags --prune --depth=1 origin +refs/heads/master:refs/remotes/origin/master
 
-- uses: lostick/conditional-diffing-action@v0.1.0
+- uses: lostick/conditional-diffing-action@v0.2.0
 
 # This step uses DIFF_DETECTED env var to determine whether it needs to be run or not
 - name: Setup go

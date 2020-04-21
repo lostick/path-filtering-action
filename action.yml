@@ -4,8 +4,12 @@ author: lostick
 
 inputs:
   config_file:
-    description: Path to a custom diffing rules file
-    default: ./github/rules2.yml
+    description: Diffing rules file path
+    default: .github/rules.yml
+    required: true
+  base_ref:
+    description: Base branch to compare to
+    default: master
     required: true
 
 runs:

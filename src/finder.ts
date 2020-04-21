@@ -8,15 +8,25 @@ import {getRootDir} from './helpers'
 export const ROOT_DIR = getRootDir()
 export const git: SimpleGit = gitP(ROOT_DIR)
 
+/** Fetch all branches */
+export async function fetchBranches(baseRef: string): Promise<void> {
+  const fetchOptions = ['--no-tags', '--prune', '--depth=1', 'origin']
+  const fetchRemotes = [`+refs/heads/${baseRef}:refs/remotes/origin/${baseRef}`]
+
+  const options = [...fetchOptions, ...fetchRemotes]
+  core.info(`Running git fetch with options: ${options.join(' ')}`)
+  await git.fetch(options)
+}
+
 /** Runs the diffing rules against the working tree */
-export async function ruleMatchesChange(rule): Promise<boolean> {
+export async function ruleMatchesChange(rule, baseRef): Promise<boolean> {
   const options = buildOptions(rule)
-  const diff = await getDiff(options)
-  core.debug(`Diffing with options ${options}`)
+  const diff = await getDiff(baseRef, options)
+  core.info(`Diff options: ${options.join(' ')}`)
 
   if (diff.changed > 0) {
     const diffedFiles = diff.files.map(elem => elem.file)
-    core.info(`Changed files: ${diffedFiles}`)
+    core.info(`Diff results: ${diffedFiles.join(' ')}`)
     return true
   }
 
@@ -24,8 +34,11 @@ export async function ruleMatchesChange(rule): Promise<boolean> {
 }
 
 /** Performs diffing based on the rules from the manifest */
-export async function getDiff(extraOptions: string[]): Promise<DiffResult> {
-  const baseOptions = ['--no-color', 'origin/master...']
+export async function getDiff(
+  baseRef: string,
+  extraOptions: string[]
+): Promise<DiffResult> {
+  const baseOptions = ['--no-color', `origin/${baseRef}...`]
   const diff = await git.diffSummary([...baseOptions, ...extraOptions])
   return diff
 }

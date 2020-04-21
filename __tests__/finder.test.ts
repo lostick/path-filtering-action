@@ -5,6 +5,7 @@ import fs from 'fs'
 import {YAMLException} from 'js-yaml'
 
 const FIXTURES_DIR = `${finder.ROOT_DIR}/__tests__/fixtures`
+const BASE_REF = 'master'
 
 beforeAll(() => {
   return initGitData()
@@ -20,13 +21,13 @@ describe('test diffing rules', () => {
       paths: ['__tests__/fixtures/dummy1']
     }
 
-    const diff = await finder.getDiff(finder.buildOptions(rule))
+    const diff = await finder.getDiff(BASE_REF, finder.buildOptions(rule))
     const fillFiles = diff.files.map(elem => elem.file)
     expect(fillFiles).toContainEqual('__tests__/fixtures/dummy1/test')
     expect(diff.changed).toBe(2)
     expect(diff.insertions).toBe(1)
 
-    const matches = await finder.ruleMatchesChange(rule)
+    const matches = await finder.ruleMatchesChange(rule, BASE_REF)
     expect(matches).toBeTruthy()
   })
 
@@ -35,13 +36,13 @@ describe('test diffing rules', () => {
       paths: ['__tests__/fixtures/dummy1/.test']
     }
 
-    const diff = await finder.getDiff(finder.buildOptions(rule))
+    const diff = await finder.getDiff(BASE_REF, finder.buildOptions(rule))
     const fillFiles = diff.files.map(elem => elem.file)
     expect(fillFiles).toContainEqual('__tests__/fixtures/dummy1/.test')
     expect(diff.changed).toBe(1)
     expect(diff.insertions).toBe(1)
 
-    const matches = await finder.ruleMatchesChange(rule)
+    const matches = await finder.ruleMatchesChange(rule, BASE_REF)
     expect(matches).toBeTruthy()
   })
 
@@ -50,7 +51,7 @@ describe('test diffing rules', () => {
       paths: ['__tests__/fixtures/dummy2']
     }
 
-    const diff = await finder.getDiff(finder.buildOptions(rule))
+    const diff = await finder.getDiff(BASE_REF, finder.buildOptions(rule))
     const fillFiles = diff.files.map(elem => elem.file)
     expect(fillFiles).toContainEqual(
       '__tests__/fixtures/dummy2/scripts/test.sh'
@@ -58,7 +59,7 @@ describe('test diffing rules', () => {
     expect(diff.changed).toBe(2)
     expect(diff.insertions).toBe(2)
 
-    const matches = await finder.ruleMatchesChange(rule)
+    const matches = await finder.ruleMatchesChange(rule, BASE_REF)
     expect(matches).toBeTruthy()
   })
 
@@ -67,11 +68,11 @@ describe('test diffing rules', () => {
       paths: ['__tests__/fixtures/dummy-does-not-exist']
     }
 
-    const diff = await finder.getDiff(finder.buildOptions(rule))
+    const diff = await finder.getDiff(BASE_REF, finder.buildOptions(rule))
     expect(diff.changed).toBe(0)
     expect(diff.insertions).toBe(0)
 
-    const match = await finder.ruleMatchesChange(rule)
+    const match = await finder.ruleMatchesChange(rule, BASE_REF)
     expect(match).not.toBeTruthy()
   })
 })
@@ -87,14 +88,22 @@ describe('test diffing yaml manifests', () => {
     await expect(helpers.getYamlRules(file)).rejects.toThrow(YAMLException)
   })
 
-  test('match diff change on parent dir', async () => {
-    const file = '__tests__/rules-test1.yml'
+  test('match diff detected', async () => {
+    const file = '__tests__/rules-match-parent-dir.yml'
     const rules = await helpers.getYamlRules(file)
 
     for (const rule of rules) {
-      let match = await finder.ruleMatchesChange(rule)
+      let match = await finder.ruleMatchesChange(rule, BASE_REF)
       expect(match).toBeTruthy()
     }
+  })
+
+  test('no diff detected', async () => {
+    const file = '__tests__/rules-no-diff-detected.yml'
+    const rules = await helpers.getYamlRules(file)
+
+    let match = await finder.ruleMatchesChange(rules[0], BASE_REF)
+    expect(match).not.toBeTruthy()
   })
 })
 

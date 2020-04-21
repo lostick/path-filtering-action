@@ -16,16 +16,13 @@ rules:
 
 2. Update your workflow
 
+The `setup go` step uses `DIFF_DETECTED` to determine whether to run or not
+
 ```yaml
 steps:
-# Make sure to fetch all branches or diffing commands won't run
 - uses: actions/checkout@v2
-- run: git fetch --no-tags --prune --depth=1 origin +refs/heads/master:refs/remotes/origin/master
-
 - uses: lostick/conditional-diffing-action@v0.2.0
-
-# This step uses DIFF_DETECTED env var to determine whether it needs to be run or not
-- name: Setup go
-  if: env.DIFF_DETECTED
+- name: setup go
+  if: env.DIFF_DETECTED == 'true'
   uses: actions/setup-go@v2
 ```

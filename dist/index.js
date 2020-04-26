@@ -2964,11 +2964,13 @@ const finder_1 = __webpack_require__(420);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
+            const baseRef = core.getInput('base_ref', { required: true });
+            yield finder_1.fetchBranches(baseRef);
             const configFile = core.getInput('config_file', { required: true });
-            core.debug('Parsing rules in the yaml manifest.');
+            core.info(`Parsing rules in ${configFile} yaml manifest.`);
             const rules = yield helpers_1.getYamlRules(configFile);
             for (const rule of rules) {
-                const match = yield finder_1.ruleMatchesChange(rule);
+                const match = yield finder_1.ruleMatchesChange(rule, baseRef);
                 if (match) {
                     core.info('Diffing rule detected changes.');
                     core.exportVariable('DIFF_DETECTED', 'true');
@@ -3595,15 +3597,26 @@ const promise_1 = __importDefault(__webpack_require__(57));
 const helpers_1 = __webpack_require__(441);
 exports.ROOT_DIR = helpers_1.getRootDir();
 exports.git = promise_1.default(exports.ROOT_DIR);
+/** Fetch all branches */
+function fetchBranches(baseRef) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const fetchOptions = ['--no-tags', '--prune', '--depth=1', 'origin'];
+        const fetchRemotes = [`+refs/heads/${baseRef}:refs/remotes/origin/${baseRef}`];
+        const options = [...fetchOptions, ...fetchRemotes];
+        core.info(`Running git fetch with options: ${options.join(' ')}`);
+        yield exports.git.fetch(options);
+    });
+}
+exports.fetchBranches = fetchBranches;
 /** Runs the diffing rules against the working tree */
-function ruleMatchesChange(rule) {
+function ruleMatchesChange(rule, baseRef) {
     return __awaiter(this, void 0, void 0, function* () {
         const options = buildOptions(rule);
-        const diff = yield getDiff(options);
-        core.debug(`Diffing with options ${options}`);
+        const diff = yield getDiff(baseRef, options);
+        core.info(`Diff options: ${options.join(' ')}`);
         if (diff.changed > 0) {
             const diffedFiles = diff.files.map(elem => elem.file);
-            core.info(`Changed files: ${diffedFiles}`);
+            core.info(`Diff results: ${diffedFiles.join(' ')}`);
             return true;
         }
         return false;
@@ -3611,9 +3624,9 @@ function ruleMatchesChange(rule) {
 }
 exports.ruleMatchesChange = ruleMatchesChange;
 /** Performs diffing based on the rules from the manifest */
-function getDiff(extraOptions) {
+function getDiff(baseRef, extraOptions) {
     return __awaiter(this, void 0, void 0, function* () {
-        const baseOptions = ['--no-color', 'origin/master...'];
+        const baseOptions = ['--no-color', `origin/${baseRef}...`];
         const diff = yield exports.git.diffSummary([...baseOptions, ...extraOptions]);
         return diff;
     });
@@ -3766,9 +3779,7 @@ exports.getRootDir = () => {
 /** Extracts git diffing rules from the yaml manifest */
 function getYamlRules(rulesPath) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (!rulesPath) {
-            rulesPath = `${exports.getRootDir()}/.github/rules.yml`;
-        }
+        rulesPath = `${exports.getRootDir()}/${rulesPath}`;
         const file = fs_1.default.readFileSync(rulesPath, 'utf8');
         const parsedYaml = js_yaml_1.default.safeLoad(file);
         return parsedYaml['rules'];

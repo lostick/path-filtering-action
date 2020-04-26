@@ -10,6 +10,7 @@ on:
   push:
 
 jobs:
+  # test npm scripts
   build:
     runs-on: ubuntu-latest
     steps:
@@ -22,14 +23,46 @@ jobs:
     - run: |
         npm install
         npm run all
-  test:
+  # test against master branch
+  test-default-branch:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - run: git fetch --no-tags --prune --depth=1 origin +refs/heads/master:refs/remotes/origin/master
+    - uses: ./
+    - run: ls -hal .
+    - name: Ensure a change has been detected
+      run: |
+        [ "${DIFF_DETECTED}" == 'true' ] || exit 1
+  # test against a base branch that's not master
+  test-non-default-branch:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
     - uses: ./
       with:
-        config_file: .github/rules.yml
-    - name: Only run if a diff has been detected
-      if: env.DIFF_DETECTED
-      run: echo diff detected
+        base_ref: add-base-ref-input-base-test
+    - name: Ensure a change has been detected
+      run: |
+        [ "${DIFF_DETECTED}" == 'true' ] || exit 1
+  # test with custom file that returns a diff
+  test-diff-detected:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: ./
+      with:
+        config_file: .github/rules2.yml
+    - name: Ensure a change has been detected
+      run: |
+        [ "${DIFF_DETECTED}" == 'true' ] || exit 1
+  # test with custom file that returns no diff
+  test-no-diff-detected:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: ./
+      with:
+        config_file: .github/rules3.yml
+    - name: Ensure a change has been detected
+      run: |
+        [ "${DIFF_DETECTED}" == 'false' ] || exit 1

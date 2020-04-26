@@ -1,17 +1,19 @@
 import * as core from '@actions/core'
 
 import {getYamlRules} from './helpers'
-import {ruleMatchesChange} from './finder'
+import {fetchBranches, ruleMatchesChange} from './finder'
 
 async function run(): Promise<void> {
   try {
-    const configFile = core.getInput('config_file', {required: true})
+    const baseRef = core.getInput('base_ref', {required: true})
+    await fetchBranches(baseRef)
 
-    core.debug('Parsing rules in the yaml manifest.')
+    const configFile = core.getInput('config_file', {required: true})
+    core.info(`Parsing rules in ${configFile} yaml manifest.`)
     const rules = await getYamlRules(configFile)
 
     for (const rule of rules) {
-      const match = await ruleMatchesChange(rule)
+      const match = await ruleMatchesChange(rule, baseRef)
       if (match) {
         core.info('Diffing rule detected changes.')
         core.exportVariable('DIFF_DETECTED', 'true')

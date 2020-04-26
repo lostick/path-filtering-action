@@ -14,9 +14,7 @@ export const getRootDir = (): string => {
 
 /** Extracts git diffing rules from the yaml manifest */
 export async function getYamlRules(rulesPath?: string): Promise<string[]> {
-  if (!rulesPath) {
-    rulesPath = `${getRootDir()}/.github/rules.yml`
-  }
+  rulesPath =  `${getRootDir()}/${rulesPath}`
 
   const file = fs.readFileSync(rulesPath, 'utf8')
   const parsedYaml = yaml.safeLoad(file)

@@ -1,6 +1,6 @@
 # conditional-diffing-action
 
-[![GitHub Marketplace](./assets/marketplace-icon.svg)](https://github.com/marketplace/actions/slash-command-dispatch) ![build-test](https://github.com/lostick/conditional-diffing-action/workflows/build-test/badge.svg?branch=master)
+[![GitHub Marketplace](./assets/marketplace-icon.svg)](https://github.com/marketplace/actions/slash-command-dispatch) ![master](https://github.com/lostick/conditional-diffing-action/workflows/master/badge.svg?branch=master)
 
 A Github Action to filter paths based on git diff rules.
 
@@ -23,7 +23,7 @@ The `setup go` step uses `DIFF_DETECTED` to determine whether to run or not
 ```yml
 steps:
 - uses: actions/checkout@v2
-- uses: lostick/conditional-diffing-action@v0.2.0
+- uses: lostick/conditional-diffing-action@master
 - name: setup go
   if: env.DIFF_DETECTED == 'true'
   uses: actions/setup-go@v2

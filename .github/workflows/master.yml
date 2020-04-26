@@ -1,0 +1,21 @@
+name: master
+
+on:
+  push:
+    branches:
+    - master
+
+jobs:
+  # test npm scripts
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: git fetch --no-tags --prune --depth=1 origin +refs/heads/master:refs/remotes/origin/master
+    - run: |
+        # set default git config for unit tests
+        git config --global user.email "gha@ci"
+        git config --global user.name "ci"
+    - run: |
+        npm install
+        npm run all

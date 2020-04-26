@@ -1,6 +1,6 @@
 # conditional-diffing-action
 
-[![GitHub Marketplace](./assets/marketplace-icon.svg)](https://github.com/marketplace/actions/slash-command-dispatch) ![master](https://github.com/lostick/conditional-diffing-action/workflows/master/badge.svg?branch=master)
+[![GitHub Marketplace](./assets/marketplace-icon.svg)](https://github.com/marketplace/actions/conditional-diffing) ![master](https://github.com/lostick/conditional-diffing-action/workflows/master/badge.svg?branch=master)
 
 A Github Action to filter paths based on git diff rules.
 

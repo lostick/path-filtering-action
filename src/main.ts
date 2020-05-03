@@ -1,7 +1,7 @@
 import * as core from '@actions/core'
 
 import {getYamlRules} from './helpers'
-import {fetchBranches, ruleMatchesChange} from './finder'
+import {fetchBranches, ruleProducesDiffChange} from './finder'
 
 async function run(): Promise<void> {
   try {
@@ -13,9 +13,9 @@ async function run(): Promise<void> {
     const rules = await getYamlRules(configFile)
 
     for (const rule of rules) {
-      const match = await ruleMatchesChange(rule, baseRef)
+      const match = await ruleProducesDiffChange(rule, baseRef)
       if (match) {
-        core.info('Diffing rule detected changes.')
+        core.info('Git diff rule detected changes.')
         core.exportVariable('DIFF_DETECTED', 'true')
         return
       }

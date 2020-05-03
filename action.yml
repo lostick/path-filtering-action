@@ -1,10 +1,10 @@
-name: Conditional Diffing
-description: Filter paths based on diffing rules
+name: Path Filtering
+description: Filter paths based on git diff rules
 author: lostick
 
 inputs:
   config_file:
-    description: Diffing rules file path
+    description: Diff rules file path
     default: .github/rules.yml
     required: true
   base_ref:

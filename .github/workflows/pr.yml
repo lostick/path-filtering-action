@@ -65,6 +65,6 @@ jobs:
     - uses: ./
       with:
         config_file: __tests__/rules-no-diff-detected.yml
-    - name: Ensure a change has been detected
+    - name: Ensure no change has been detected
       run: |
         [ "${DIFF_DETECTED}" == 'false' ] || exit 1

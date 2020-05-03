@@ -15,7 +15,7 @@ afterAll(() => {
   return clearGitData()
 })
 
-describe('test diffing rules', () => {
+describe('test git diff rules', () => {
   test('match diff change on parent dir', async () => {
     let rule = {
       paths: ['__tests__/fixtures/dummy1']
@@ -27,8 +27,8 @@ describe('test diffing rules', () => {
     expect(diff.changed).toBe(2)
     expect(diff.insertions).toBe(1)
 
-    const matches = await finder.ruleMatchesChange(rule, BASE_REF)
-    expect(matches).toBeTruthy()
+    const diffDetected = await finder.ruleProducesDiffChange(rule, BASE_REF)
+    expect(diffDetected).toBeTruthy()
   })
 
   test('match diff change on exact file', async () => {
@@ -42,8 +42,8 @@ describe('test diffing rules', () => {
     expect(diff.changed).toBe(1)
     expect(diff.insertions).toBe(1)
 
-    const matches = await finder.ruleMatchesChange(rule, BASE_REF)
-    expect(matches).toBeTruthy()
+    const diffDetected = await finder.ruleProducesDiffChange(rule, BASE_REF)
+    expect(diffDetected).toBeTruthy()
   })
 
   test('match diff change on parent dir with file in subdir', async () => {
@@ -59,8 +59,8 @@ describe('test diffing rules', () => {
     expect(diff.changed).toBe(2)
     expect(diff.insertions).toBe(2)
 
-    const matches = await finder.ruleMatchesChange(rule, BASE_REF)
-    expect(matches).toBeTruthy()
+    const diffDetected = await finder.ruleProducesDiffChange(rule, BASE_REF)
+    expect(diffDetected).toBeTruthy()
   })
 
   test('no diff change on unknown parent dir', async () => {
@@ -72,12 +72,12 @@ describe('test diffing rules', () => {
     expect(diff.changed).toBe(0)
     expect(diff.insertions).toBe(0)
 
-    const match = await finder.ruleMatchesChange(rule, BASE_REF)
+    const match = await finder.ruleProducesDiffChange(rule, BASE_REF)
     expect(match).not.toBeTruthy()
   })
 })
 
-describe('test diffing yaml manifests', () => {
+describe('test git diff yaml manifests', () => {
   test('rules config file not found', async () => {
     const file = '__tests__/rules-not-found.yml'
     await expect(helpers.getYamlRules(file)).rejects.toThrowError()
@@ -93,7 +93,7 @@ describe('test diffing yaml manifests', () => {
     const rules = await helpers.getYamlRules(file)
 
     for (const rule of rules) {
-      let match = await finder.ruleMatchesChange(rule, BASE_REF)
+      let match = await finder.ruleProducesDiffChange(rule, BASE_REF)
       expect(match).toBeTruthy()
     }
   })
@@ -102,7 +102,7 @@ describe('test diffing yaml manifests', () => {
     const file = '__tests__/rules-no-diff-detected.yml'
     const rules = await helpers.getYamlRules(file)
 
-    let match = await finder.ruleMatchesChange(rules[0], BASE_REF)
+    let match = await finder.ruleProducesDiffChange(rules[0], BASE_REF)
     expect(match).not.toBeTruthy()
   })
 })

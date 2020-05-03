@@ -8,7 +8,11 @@ import {getRootDir} from './helpers'
 export const ROOT_DIR = getRootDir()
 export const git: SimpleGit = gitP(ROOT_DIR)
 
-/** Fetch all branches */
+/**
+ * Fetches all git branches.
+ * @param {string} baseRef The base (target) git branch.
+ * @returns {void}
+ */
 export async function fetchBranches(baseRef: string): Promise<void> {
   const fetchOptions = ['--no-tags', '--prune', '--depth=1', 'origin']
   const fetchRemotes = [`+refs/heads/${baseRef}:refs/remotes/origin/${baseRef}`]
@@ -18,8 +22,41 @@ export async function fetchBranches(baseRef: string): Promise<void> {
   await git.fetch(options)
 }
 
-/** Runs the diffing rules against the working tree */
-export async function ruleMatchesChange(rule, baseRef): Promise<boolean> {
+/**
+ * Performs git diff based on the rules from the manifest.
+ * @param {string} baseRef The base (target) git branch.
+ * @param {Array.string} extraOptions Extra git diff options.
+ * @returns {Promise.DiffResult} A DiffResult object that contains diff changes.
+ */
+export async function getDiff(
+  baseRef: string,
+  extraOptions: string[]
+): Promise<DiffResult> {
+  const baseOptions = ['--no-color', `origin/${baseRef}...`]
+  const diff = await git.diffSummary([...baseOptions, ...extraOptions])
+  return diff
+}
+
+/**
+ * Builds options to pass to diff command.
+ * @param {object} rule A rule contains paths and other options.
+ * @returns {Array.string} A list of arguments to pass to git diff.
+ */
+export function buildOptions(rule: object): string[] {
+  const fullPaths: string[] = rule['paths'].map(el => `${ROOT_DIR}/${el}`)
+  return fullPaths.length ? ['--', ...fullPaths] : []
+}
+
+/**
+ * Runs the git diff rules against the working tree.
+ * @param {object} rule A rule contains paths and other options.
+ * @param {string} baseRef The base (target) git branch.
+ * @returns {Promise.boolean} Does the rule produce any git diff change?
+ */
+export async function ruleProducesDiffChange(
+  rule: object,
+  baseRef: string
+): Promise<boolean> {
   const options = buildOptions(rule)
   const diff = await getDiff(baseRef, options)
   core.info(`Diff options: ${options.join(' ')}`)
@@ -31,20 +68,4 @@ export async function ruleMatchesChange(rule, baseRef): Promise<boolean> {
   }
 
   return false
-}
-
-/** Performs diffing based on the rules from the manifest */
-export async function getDiff(
-  baseRef: string,
-  extraOptions: string[]
-): Promise<DiffResult> {
-  const baseOptions = ['--no-color', `origin/${baseRef}...`]
-  const diff = await git.diffSummary([...baseOptions, ...extraOptions])
-  return diff
-}
-
-/** Builds options to pass to diff command */
-export function buildOptions(rule: object): string[] {
-  const fullPaths: string[] = rule['paths'].map(el => `${ROOT_DIR}/${el}`)
-  return fullPaths.length ? ['--', ...fullPaths] : []
 }

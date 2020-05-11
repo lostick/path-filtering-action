@@ -3746,8 +3746,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const promise_1 = __importDefault(__webpack_require__(57));
 const helpers_1 = __webpack_require__(441);
-exports.ROOT_DIR = helpers_1.getRootDir();
-exports.git = promise_1.default(exports.ROOT_DIR);
+const ROOT_DIR = helpers_1.getRootDir();
 /**
  * Fetches all git branches.
  * @param {string} baseRef The base (target) git branch.
@@ -3755,11 +3754,12 @@ exports.git = promise_1.default(exports.ROOT_DIR);
  */
 function fetchBranches(baseRef) {
     return __awaiter(this, void 0, void 0, function* () {
+        const git = promise_1.default(ROOT_DIR);
         const fetchOptions = ['--no-tags', '--prune', '--depth=1', 'origin'];
         const fetchRemotes = [`+refs/heads/${baseRef}:refs/remotes/origin/${baseRef}`];
         const options = [...fetchOptions, ...fetchRemotes];
         core.info(`Running git fetch with options: ${options.join(' ')}`);
-        yield exports.git.fetch(options);
+        yield git.fetch(options);
     });
 }
 exports.fetchBranches = fetchBranches;
@@ -3771,8 +3771,9 @@ exports.fetchBranches = fetchBranches;
  */
 function getDiff(baseRef, extraOptions) {
     return __awaiter(this, void 0, void 0, function* () {
+        const git = promise_1.default(ROOT_DIR);
         const baseOptions = ['--no-color', `origin/${baseRef}...`];
-        const diff = yield exports.git.diffSummary([...baseOptions, ...extraOptions]);
+        const diff = yield git.diffSummary([...baseOptions, ...extraOptions]);
         return diff;
     });
 }
@@ -3783,7 +3784,7 @@ exports.getDiff = getDiff;
  * @returns {Array.string} A list of arguments to pass to git diff.
  */
 function buildOptions(rule) {
-    const fullPaths = rule['paths'].map(el => `${exports.ROOT_DIR}/${el}`);
+    const fullPaths = rule['paths'].map(el => `${ROOT_DIR}/${el}`);
     return fullPaths.length ? ['--', ...fullPaths] : [];
 }
 exports.buildOptions = buildOptions;

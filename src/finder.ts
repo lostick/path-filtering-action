@@ -5,8 +5,7 @@ import {DiffResult} from 'simple-git/typings/response'
 
 import {getRootDir} from './helpers'
 
-export const ROOT_DIR = getRootDir()
-export const git: SimpleGit = gitP(ROOT_DIR)
+const ROOT_DIR = getRootDir()
 
 /**
  * Fetches all git branches.
@@ -14,6 +13,8 @@ export const git: SimpleGit = gitP(ROOT_DIR)
  * @returns {void}
  */
 export async function fetchBranches(baseRef: string): Promise<void> {
+  const git: SimpleGit = gitP(ROOT_DIR)
+
   const fetchOptions = ['--no-tags', '--prune', '--depth=1', 'origin']
   const fetchRemotes = [`+refs/heads/${baseRef}:refs/remotes/origin/${baseRef}`]
 
@@ -32,8 +33,11 @@ export async function getDiff(
   baseRef: string,
   extraOptions: string[]
 ): Promise<DiffResult> {
+  const git: SimpleGit = gitP(ROOT_DIR)
+
   const baseOptions = ['--no-color', `origin/${baseRef}...`]
   const diff = await git.diffSummary([...baseOptions, ...extraOptions])
+
   return diff
 }
 

@@ -26,11 +26,11 @@ export function getRootDir(): string {
  * @param {string} rulesPath The path to the files containing rules.
  * @returns {Array} List of rules to pass to git diff.
  */
-export async function getYamlRules(rulesPath?: string): Promise<DiffRUle[]> {
+export async function getYamlRules(rulesPath: string): Promise<DiffRUle[]> {
   rulesPath = `${getRootDir()}/${rulesPath}`
 
   const file = fs.readFileSync(rulesPath, 'utf8')
   const parsedYaml = yaml.safeLoad(file)
 
-  return parsedYaml['rules']
+  return parsedYaml ? parsedYaml['rules'] : []
 }

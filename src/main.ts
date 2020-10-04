@@ -14,6 +14,7 @@ async function run(): Promise<void> {
 
     for (const rule of rules) {
       const match = await ruleProducesDiffChange(rule, baseRef)
+      core.info(`Match for ${rule.paths} = ${match}`)
       if (match) {
         core.info('Git diff rule detected changes.')
         core.exportVariable('DIFF_DETECTED', 'true')
@@ -24,7 +25,7 @@ async function run(): Promise<void> {
     core.info('No changes detected.')
     core.exportVariable('DIFF_DETECTED', 'false')
   } catch (err) {
-    core.setFailed(err.message)
+    core.setFailed(`Action failed with error ${err}`)
   }
 }
 

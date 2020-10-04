@@ -25,23 +25,23 @@
   "author": "lostick",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.2.0",
-    "simple-git": "^2.3.0"
+    "@actions/core": "^1.2.6",
+    "simple-git": "^2.20.1"
   },
   "devDependencies": {
-    "@types/jest": "^25.2.1",
-    "@types/js-yaml": "^3.12.3",
-    "@types/node": "^12.7.12",
+    "@types/jest": "^25.2.3",
+    "@types/js-yaml": "^3.12.5",
+    "@types/node": "^12.12.62",
     "@typescript-eslint/eslint-plugin": "^2.30.0",
     "@typescript-eslint/parser": "^2.30.0",
     "@zeit/ncc": "^0.22.1",
     "eslint": "^6.8.0",
     "eslint-plugin-github": "^3.4.1",
-    "eslint-plugin-jest": "^23.8.2",
+    "eslint-plugin-jest": "^23.20.0",
     "jest": "^25.5.4",
     "jest-circus": "^25.5.4",
-    "js-yaml": "^3.13.1",
-    "prettier": "^2.0.5",
+    "js-yaml": "^3.14.0",
+    "prettier": "^2.1.2",
     "ts-jest": "^25.4.0",
     "ts-node": "^8.10.1",
     "typescript": "^3.8.3"

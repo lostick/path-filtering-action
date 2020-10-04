@@ -32,5 +32,5 @@ export async function getYamlRules(rulesPath?: string): Promise<DiffRUle[]> {
   const file = fs.readFileSync(rulesPath, 'utf8')
   const parsedYaml = yaml.safeLoad(file)
 
-  return parsedYaml['rules']
+  return parsedYaml?.['rules']
 }

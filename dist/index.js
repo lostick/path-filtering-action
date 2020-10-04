@@ -19,7 +19,13 @@ module.exports =
 /******/ 		};
 /******/
 /******/ 		// Execute the module function
-/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/ 		var threw = true;
+/******/ 		try {
+/******/ 			modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/ 			threw = false;
+/******/ 		} finally {
+/******/ 			if(threw) delete installedModules[moduleId];
+/******/ 		}
 /******/
 /******/ 		// Flag the module as loaded
 /******/ 		module.l = true;
@@ -130,32 +136,6 @@ module.exports = new Schema({
 
 /***/ }),
 
-/***/ 24:
-/***/ (function(__unusedmodule, exports) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.NOOP = () => { };
-function splitOn(input, char) {
-    const index = input.indexOf(char);
-    if (index <= 0) {
-        return [input, ''];
-    }
-    return [
-        input.substr(0, index),
-        input.substr(index + 1),
-    ];
-}
-exports.splitOn = splitOn;
-function last(input) {
-    return input && input.length ? input[input.length - 1] : undefined;
-}
-exports.last = last;
-//# sourceMappingURL=util.js.map
-
-/***/ }),
-
 /***/ 37:
 /***/ (function(__unusedmodule, exports) {
 
@@ -174,147 +154,37 @@ exports.parseCheckIgnore = (text) => {
 
 /***/ }),
 
-/***/ 39:
-/***/ (function(module) {
+/***/ 42:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
+"use strict";
 
-module.exports = PullSummary;
-
-/**
- * The PullSummary is returned as a response to getting `git().pull()`
- *
- * @constructor
- */
-function PullSummary () {
-   this.files = [];
-   this.insertions = {};
-   this.deletions = {};
-
-   this.summary = {
-      changes: 0,
-      insertions: 0,
-      deletions: 0
-   };
-
-   this.created = [];
-   this.deleted = [];
+Object.defineProperty(exports, "__esModule", { value: true });
+const utils_1 = __webpack_require__(532);
+class CleanResponse {
+    constructor(dryRun) {
+        this.dryRun = dryRun;
+        this.paths = [];
+        this.files = [];
+        this.folders = [];
+    }
 }
-
-/**
- * Array of files that were created
- * @type {string[]}
- */
-PullSummary.prototype.created = null;
-
-/**
- * Array of files that were deleted
- * @type {string[]}
- */
-PullSummary.prototype.deleted = null;
-
-/**
- * The array of file paths/names that have been modified in any part of the pulled content
- * @type {string[]}
- */
-PullSummary.prototype.files = null;
-
-/**
- * A map of file path to number to show the number of insertions per file.
- * @type {Object}
- */
-PullSummary.prototype.insertions = null;
-
-/**
- * A map of file path to number to show the number of deletions per file.
- * @type {Object}
- */
-PullSummary.prototype.deletions = null;
-
-/**
- * Overall summary of changes/insertions/deletions and the number associated with each
- * across all content that was pulled.
- * @type {Object}
- */
-PullSummary.prototype.summary = null;
-
-PullSummary.FILE_UPDATE_REGEX = /^\s*(.+?)\s+\|\s+\d+\s*(\+*)(-*)/;
-PullSummary.SUMMARY_REGEX = /(\d+)\D+((\d+)\D+\(\+\))?(\D+(\d+)\D+\(-\))?/;
-PullSummary.ACTION_REGEX = /(create|delete) mode \d+ (.+)/;
-
-PullSummary.parse = function (text) {
-   var pullSummary = new PullSummary;
-   var lines = text.split('\n');
-
-   while (lines.length) {
-      var line = lines.shift().trim();
-      if (!line) {
-         continue;
-      }
-
-      update(pullSummary, line) || summary(pullSummary, line) || action(pullSummary, line);
-   }
-
-   return pullSummary;
-};
-
-function update (pullSummary, line) {
-
-   var update = PullSummary.FILE_UPDATE_REGEX.exec(line);
-   if (!update) {
-      return false;
-   }
-
-   pullSummary.files.push(update[1]);
-
-   var insertions = update[2].length;
-   if (insertions) {
-      pullSummary.insertions[update[1]] = insertions;
-   }
-
-   var deletions = update[3].length;
-   if (deletions) {
-      pullSummary.deletions[update[1]] = deletions;
-   }
-
-   return true;
+exports.CleanResponse = CleanResponse;
+const removalRegexp = /^[a-z]+\s*/i;
+const dryRunRemovalRegexp = /^[a-z]+\s+[a-z]+\s*/i;
+const isFolderRegexp = /\/$/;
+function cleanSummaryParser(dryRun, text) {
+    const summary = new CleanResponse(dryRun);
+    const regexp = dryRun ? dryRunRemovalRegexp : removalRegexp;
+    utils_1.toLinesWithContent(text).forEach(line => {
+        const removed = line.replace(regexp, '');
+        summary.paths.push(removed);
+        (isFolderRegexp.test(removed) ? summary.folders : summary.files).push(removed);
+    });
+    return summary;
 }
-
-function summary (pullSummary, line) {
-   if (!pullSummary.files.length) {
-      return false;
-   }
-
-   var update = PullSummary.SUMMARY_REGEX.exec(line);
-   if (!update || (update[3] === undefined && update[5] === undefined)) {
-      return false;
-   }
-
-   pullSummary.summary.changes = +update[1] || 0;
-   pullSummary.summary.insertions = +update[3] || 0;
-   pullSummary.summary.deletions = +update[5] || 0;
-
-   return true;
-}
-
-function action (pullSummary, line) {
-
-   var match = PullSummary.ACTION_REGEX.exec(line);
-   if (!match) {
-      return false;
-   }
-
-   var file = match[2];
-
-   if (pullSummary.files.indexOf(file) < 0) {
-      pullSummary.files.push(file);
-   }
-
-   var container = (match[1] === 'create') ? pullSummary.created : pullSummary.deleted;
-   container.push(file);
-
-   return true;
-}
-
+exports.cleanSummaryParser = cleanSummaryParser;
+//# sourceMappingURL=CleanSummary.js.map
 
 /***/ }),
 
@@ -615,310 +485,109 @@ module.exports = new Type('tag:yaml.org,2002:int', {
 
 /***/ }),
 
-/***/ 57:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-if (typeof Promise === 'undefined') {
-   throw new ReferenceError("Promise wrappers must be enabled to use the promise API");
-}
-
-function isAsyncCall (fn) {
-   return /^[^)]+then\s*\)/.test(fn) || /\._run\(/.test(fn);
-}
-
-var functionNamesBuilderApi = [
-   'customBinary', 'env', 'outputHandler', 'silent',
-];
-
-var functionNamesPromiseApi = [
-   'add',
-   'addAnnotatedTag',
-   'addConfig',
-   'addRemote',
-   'addTag',
-   'binaryCatFile',
-   'branch',
-   'branchLocal',
-   'catFile',
-   'checkIgnore',
-   'checkIsRepo',
-   'checkout',
-   'checkoutBranch',
-   'checkoutLatestTag',
-   'checkoutLocalBranch',
-   'clean',
-   'clone',
-   'commit',
-   'cwd',
-   'deleteLocalBranch',
-   'deleteLocalBranches',
-   'diff',
-   'diffSummary',
-   'exec',
-   'fetch',
-   'getRemotes',
-   'init',
-   'listConfig',
-   'listRemote',
-   'log',
-   'merge',
-   'mergeFromTo',
-   'mirror',
-   'mv',
-   'pull',
-   'push',
-   'pushTags',
-   'raw',
-   'rebase',
-   'remote',
-   'removeRemote',
-   'reset',
-   'revert',
-   'revparse',
-   'rm',
-   'rmKeepLocal',
-   'show',
-   'stash',
-   'stashList',
-   'status',
-   'subModule',
-   'submoduleAdd',
-   'submoduleInit',
-   'submoduleUpdate',
-   'tag',
-   'tags',
-   'updateServerInfo'
-];
-
-module.exports = function (baseDir) {
-
-   var Git = __webpack_require__(71);
-   var gitFactory = __webpack_require__(964);
-   var git;
-
-
-   var chain = Promise.resolve();
-
-   try {
-      git = gitFactory(baseDir);
-   }
-   catch (e) {
-      chain = Promise.reject(e);
-   }
-
-   var promiseApi = {};
-
-
-   var builderReturn = function () {
-      return promiseApi;
-   };
-   functionNamesBuilderApi.forEach(function (name) {
-      promiseApi[name] = git && syncWrapper(name, git, promiseApi) || builderReturn;
-   });
-
-   var chainReturn = function () {
-      return chain;
-   };
-   functionNamesPromiseApi.forEach(function (name) {
-      promiseApi[name] = git && asyncWrapper(name, git) || chainReturn;
-   });
-
-   return promiseApi;
-
-   function asyncWrapper (fn, git) {
-      return function () {
-         var args = [].slice.call(arguments);
-
-         if (typeof args[args.length] === 'function') {
-            throw new TypeError(
-               "Promise interface requires that handlers are not supplied inline, " +
-               "trailing function not allowed in call to " + fn);
-         }
-
-         return chain.then(function () {
-            return new Promise(function (resolve, reject) {
-               args.push(function (err, result) {
-                  if (err) {
-                     return reject(toError(err));
-                  }
-
-                  resolve(result);
-               });
-
-               git[fn].apply(git, args);
-            });
-         });
-      };
-   }
-
-   function syncWrapper (fn, git, api) {
-      return function () {
-         git[fn].apply(git, arguments);
-
-         return api;
-      };
-   }
-
-};
-
-function toError (error) {
-
-   if (error instanceof Error) {
-      return error;
-   }
-
-   if (typeof error === 'string') {
-      return new Error(error);
-   }
-
-   return Object.create(new Error(error), {
-      git: {value: error},
-   });
-}
-
-
-/***/ }),
-
-/***/ 60:
+/***/ 49:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-const child_process_1 = __webpack_require__(4);
-const task_1 = __webpack_require__(614);
-const git_error_1 = __webpack_require__(347);
-class GitExecutor {
-    constructor(binary = 'git', cwd, env, outputHandler) {
-        this.binary = binary;
-        this.cwd = cwd;
-        this.env = env;
-        this.outputHandler = outputHandler;
-        this._chain = Promise.resolve();
-    }
-    push(task) {
-        return this._chain = this._chain.then(() => __awaiter(this, void 0, void 0, function* () {
-            try {
-                if (task_1.isEmptyTask(task)) {
-                    return task.parser('');
-                }
-                const raw = yield this.gitResponse(this.binary, task.commands, this.outputHandler);
-                const data = yield this.handleTaskData(task, raw);
-                return task_1.isBufferTask(task) ? task.parser(data) : task.parser(data.toString(task.format));
-            }
-            catch (e) {
-                this._chain = Promise.resolve();
-                throw new git_error_1.GitError(task, e && String(e));
-            }
-        }));
-    }
-    handleTaskData({ onError, concatStdErr }, { exitCode, stdOut, stdErr }) {
-        return new Promise((done, fail) => {
-            if (exitCode && stdErr.length && onError) {
-                return onError(exitCode, Buffer.concat([...(concatStdErr ? stdOut : []), ...stdErr]).toString('utf-8'), (result) => {
-                    done(Buffer.from(Buffer.isBuffer(result) ? result : String(result)));
-                }, fail);
-            }
-            if (exitCode && stdErr.length) {
-                return fail(Buffer.concat(stdErr).toString('utf-8'));
-            }
-            if (concatStdErr) {
-                stdOut.push(...stdErr);
-            }
-            done(Buffer.concat(stdOut));
-        });
-    }
-    gitResponse(command, args, outputHandler) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const spawnOptions = {
-                cwd: this.cwd,
-                env: this.env,
-                windowsHide: true,
-            };
-            return new Promise((done) => {
-                const stdOut = [];
-                const stdErr = [];
-                let attempted = false;
-                function attemptClose(exitCode) {
-                    // closing when there is content, terminate immediately
-                    if (attempted || stdErr.length || stdOut.length) {
-                        done({
-                            stdOut,
-                            stdErr,
-                            exitCode,
-                        });
-                        attempted = true;
-                    }
-                    // first attempt at closing but no content yet, wait briefly for the close/exit that may follow
-                    if (!attempted) {
-                        attempted = true;
-                        setTimeout(() => attemptClose(exitCode), 50);
-                    }
-                }
-                const spawned = child_process_1.spawn(command, args, spawnOptions);
-                spawned.stdout.on('data', (buffer) => stdOut.push(buffer));
-                spawned.stderr.on('data', (buffer) => stdErr.push(buffer));
-                spawned.on('error', (err) => stdErr.push(Buffer.from(String(err.stack), 'ascii')));
-                spawned.on('close', (code) => attemptClose(code));
-                spawned.on('exit', attemptClose);
-                if (outputHandler) {
-                    outputHandler(command[0], spawned.stdout, spawned.stderr);
-                }
-            });
-        });
-    }
+const InitSummary_1 = __webpack_require__(756);
+const bareCommand = '--bare';
+function hasBareCommand(command) {
+    return command.includes(bareCommand);
 }
-exports.GitExecutor = GitExecutor;
-//# sourceMappingURL=git-executor.js.map
+function initTask(bare = false, path, customArgs) {
+    const commands = ['init', ...customArgs];
+    if (bare && !hasBareCommand(commands)) {
+        commands.splice(1, 0, bareCommand);
+    }
+    return {
+        commands,
+        concatStdErr: false,
+        format: 'utf-8',
+        parser(text) {
+            return InitSummary_1.parseInit(commands.includes('--bare'), path, text);
+        }
+    };
+}
+exports.initTask = initTask;
+//# sourceMappingURL=init.js.map
+
+/***/ }),
+
+/***/ 57:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+
+const {esModuleFactory, gitExportFactory} = __webpack_require__(367);
+const {gitP} = __webpack_require__(843);
+
+module.exports = esModuleFactory(
+   gitExportFactory(gitP)
+);
+
 
 /***/ }),
 
 /***/ 71:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
-var debug = __webpack_require__(784)('simple-git');
-var exists = __webpack_require__(265);
-var responses = __webpack_require__(898);
+const responses = __webpack_require__(898);
 
-const {NOOP} = __webpack_require__(24);
-const {GitExecutor} = __webpack_require__(60);
+const {GitExecutor} = __webpack_require__(98);
+const {Scheduler} = __webpack_require__(743);
+const {GitLogger} = __webpack_require__(248);
+const {adhocExecTask, configurationErrorTask} = __webpack_require__(614);
+const {NOOP, appendTaskOptions, asArray, filterArray, filterPrimitives, filterString, filterType, folderExists, getTrailingOptions, trailingFunctionArgument, trailingOptionsArgument} = __webpack_require__(532);
 const {branchTask, branchLocalTask, deleteBranchesTask, deleteBranchTask} = __webpack_require__(733);
-const {addConfigTask, listConfigTask} = __webpack_require__(312);
-const {statusTask} = __webpack_require__(695);
-const {addAnnotatedTagTask, addTagTask, tagListTask} = __webpack_require__(151);
 const {taskCallback} = __webpack_require__(315);
+const {checkIsRepoTask} = __webpack_require__(787);
+const {cloneTask, cloneMirrorTask} = __webpack_require__(927);
+const {addConfigTask, listConfigTask} = __webpack_require__(312);
+const {cleanWithOptionsTask, isCleanOptionsArray} = __webpack_require__(152);
+const {initTask} = __webpack_require__(49);
+const {mergeTask} = __webpack_require__(508);
+const {moveTask} = __webpack_require__(971);
+const {pullTask} = __webpack_require__(410);
+const {pushTagsTask, pushTask} = __webpack_require__(938);
+const {addRemoteTask, getRemotesTask, listRemotesTask, remoteTask, removeRemoteTask} = __webpack_require__(453);
+const {getResetMode, resetTask} = __webpack_require__(462);
+const {statusTask} = __webpack_require__(695);
+const {addSubModuleTask, initSubModuleTask, subModuleTask, updateSubModuleTask} = __webpack_require__(587);
+const {addAnnotatedTagTask, addTagTask, tagListTask} = __webpack_require__(151);
+const {straightThroughStringTask} = __webpack_require__(614);
 const {parseCheckIgnore} = __webpack_require__(37);
+
+const ChainedExecutor = Symbol('ChainedExecutor');
 
 /**
  * Git handling for node. All public functions can be chained and all `then` handlers are optional.
  *
- * @param {string} baseDir base directory for all processes to run
- *
- * @param {Object} ChildProcess The ChildProcess module
- * @param {Function} Buffer The Buffer implementation to use
+ * @param {SimpleGitOptions} options Configuration settings for this instance
  *
  * @constructor
  */
-function Git (baseDir, ChildProcess, Buffer) {
-   this._executor = new GitExecutor('git', baseDir);
-
-   this.ChildProcess = ChildProcess;
-   this.Buffer = Buffer;
+function Git (options) {
+   this._executor = new GitExecutor(
+      options.binary, options.baseDir,
+      new Scheduler(options.maxConcurrentProcesses)
+   );
+   this._logger = new GitLogger();
 }
 
 /**
- * @type {boolean} Property showing whether logging will be silenced - defaults to true in a production environment
+ * The executor that runs each of the added commands
+ * @type {GitExecutor}
+ * @private
  */
-Git.prototype._silentLogging = /prod/.test(process.env.NODE_ENV);
+Git.prototype._executor = null;
+
+/**
+ * Logging utility for printing out info or error messages to the user
+ * @type {GitLogger}
+ * @private
+ */
+Git.prototype._logger = null;
 
 /**
  * Sets the path to a custom git binary, should either be `git` when there is an installation of git available on
@@ -952,23 +621,19 @@ Git.prototype.env = function (name, value) {
 
 /**
  * Sets the working directory of the subsequent commands.
- *
- * @param {string} workingDirectory
- * @param {Function} [then]
- * @returns {Git}
  */
 Git.prototype.cwd = function (workingDirectory, then) {
-   var git = this;
-   var next = Git.trailingFunctionArgument(arguments) || NOOP;
+   const task = (typeof workingDirectory !== 'string')
+      ? configurationErrorTask('Git.cwd: workingDirectory must be supplied as a string')
+      : adhocExecTask(() => {
+         if (!folderExists(workingDirectory)) {
+            throw new Error(`Git.cwd: cannot change to non-directory "${ workingDirectory }"`);
+         }
 
-   return this.exec(function () {
-      if (!exists(workingDirectory, exists.FOLDER)) {
-         return Git.exception(git, 'Git.cwd: cannot change to non-directory "' + workingDirectory + '"', next);
-      }
+         return (this._executor.cwd = workingDirectory);
+      });
 
-      git._executor.cwd = workingDirectory;
-      next(null, workingDirectory);
-   });
+   return this._runTask(task, trailingFunctionArgument(arguments) || NOOP);
 };
 
 /**
@@ -999,25 +664,20 @@ Git.prototype.outputHandler = function (outputHandler) {
  * @param {Function} [then]
  */
 Git.prototype.init = function (bare, then) {
-   var commands = ['init'];
-   var next = Git.trailingFunctionArgument(arguments);
-
-   if (bare === true) {
-      commands.push('--bare');
-   }
-
-   return this._run(commands, function (err) {
-      next && next(err);
-   });
+   return this._runTask(
+      initTask(bare === true, this._executor.cwd, getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
  * Check the status of the local repo
- *
- * @param {Function} [then]
  */
-Git.prototype.status = function (then) {
-   return this._runTask(statusTask(), then);
+Git.prototype.status = function () {
+   return this._runTask(
+      statusTask(getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
@@ -1027,7 +687,7 @@ Git.prototype.status = function (then) {
  * @param {Function} [then]
  */
 Git.prototype.stashList = function (options, then) {
-   var handler = Git.trailingFunctionArgument(arguments);
+   var handler = trailingFunctionArgument(arguments);
    var opt = (handler === then ? options : null) || {};
 
    var splitter = opt.splitter || requireResponseHandler('ListLogSummary').SPLITTER;
@@ -1041,9 +701,7 @@ Git.prototype.stashList = function (options, then) {
       command = command.concat(opt);
    }
 
-   return this._run(command,
-      Git._responseHandler(handler, 'ListLogSummary', splitter)
-   );
+   return this._run(command, handler, {parser: Git.responseParser('ListLogSummary', splitter)});
 };
 
 /**
@@ -1053,45 +711,39 @@ Git.prototype.stashList = function (options, then) {
  * @param {Function} [then]
  */
 Git.prototype.stash = function (options, then) {
-   var command = ['stash'];
-   Git._appendOptions(command, Git.trailingOptionsArgument(arguments));
-   command.push.apply(command, Git.trailingArrayArgument(arguments));
-
-   return this._run(command, Git._responseHandler(Git.trailingFunctionArgument(arguments)));
+   return this._run(
+      ['stash'].concat(getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments)
+   );
 };
+
+function createCloneTask (api, task, repoPath, localPath) {
+   if (typeof repoPath !== 'string') {
+      return configurationErrorTask(`git.${ api }() requires a string 'repoPath'`);
+   }
+
+   return task(repoPath, filterType(localPath, filterString), getTrailingOptions(arguments));
+}
+
 
 /**
  * Clone a git repo
- *
- * @param {string} repoPath
- * @param {string} localPath
- * @param {String[]} [options] Optional array of options to pass through to the clone command
- * @param {Function} [then]
  */
-Git.prototype.clone = function (repoPath, localPath, options, then) {
-   var next = Git.trailingFunctionArgument(arguments);
-   var command = ['clone'].concat(Git.trailingArrayArgument(arguments));
-
-   for (var i = 0, iMax = arguments.length; i < iMax; i++) {
-      if (typeof arguments[i] === 'string') {
-         command.push(arguments[i]);
-      }
-   }
-
-   return this._run(command, function (err, data) {
-      next && next(err, data);
-   });
+Git.prototype.clone = function () {
+   return this._runTask(
+      createCloneTask('clone', cloneTask, ...arguments),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
  * Mirror a git repo
- *
- * @param {string} repoPath
- * @param {string} localPath
- * @param {Function} [then]
  */
-Git.prototype.mirror = function (repoPath, localPath, then) {
-   return this.clone(repoPath, localPath, ['--mirror'], then);
+Git.prototype.mirror = function () {
+   return this._runTask(
+      createCloneTask('mirror', cloneMirrorTask, ...arguments),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
@@ -1101,16 +753,9 @@ Git.prototype.mirror = function (repoPath, localPath, then) {
  *
  * @param {string|string[]} from
  * @param {string} to
- * @param {Function} [then]
  */
-Git.prototype.mv = function (from, to, then) {
-   var handler = Git.trailingFunctionArgument(arguments);
-
-   var command = [].concat(from);
-   command.unshift('mv', '-v');
-   command.push(to);
-
-   this._run(command, Git._responseHandler(handler, 'MoveSummary'))
+Git.prototype.mv = function (from, to) {
+   return this._runTask(moveTask(from, to), trailingFunctionArgument(arguments));
 };
 
 /**
@@ -1129,14 +774,12 @@ Git.prototype.checkoutLatestTag = function (then) {
 
 /**
  * Adds one or more files to source control
- *
- * @param {string|string[]} files
- * @param {Function} [then]
  */
-Git.prototype.add = function (files, then) {
-   return this._run(['add'].concat(files), function (err, data) {
-      then && then(err);
-   });
+Git.prototype.add = function (files) {
+   return this._run(
+      ['add'].concat(files),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
@@ -1149,39 +792,23 @@ Git.prototype.add = function (files, then) {
  * @param {Function} [then]
  */
 Git.prototype.commit = function (message, files, options, then) {
-   var handler = Git.trailingFunctionArgument(arguments);
-
    var command = ['commit'];
 
-   [].concat(message).forEach(function (message) {
+   asArray(message).forEach(function (message) {
       command.push('-m', message);
    });
 
-   [].push.apply(command, [].concat(typeof files === "string" || Array.isArray(files) ? files : []));
+   asArray(typeof files === "string" || Array.isArray(files) ? files : []).forEach(cmd => command.push(cmd));
 
-   Git._appendOptions(command, Git.trailingOptionsArgument(arguments));
+   command.push(...getTrailingOptions(arguments, 0, true));
 
    return this._run(
       command,
-      Git._responseHandler(handler, 'CommitSummary')
+      trailingFunctionArgument(arguments),
+      {
+         parser: Git.responseParser('CommitSummary'),
+      },
    );
-};
-
-/**
- * Gets a function to be used for logging.
- *
- * @param {string} level
- * @param {string} [message]
- *
- * @returns {Function}
- * @private
- */
-Git.prototype._getLog = function (level, message) {
-   var log = this._silentLogging ? NOOP : console[level].bind(console);
-   if (arguments.length > 1) {
-      log(message);
-   }
-   return log;
 };
 
 /**
@@ -1193,16 +820,10 @@ Git.prototype._getLog = function (level, message) {
  * @param {Function} [then]
  */
 Git.prototype.pull = function (remote, branch, options, then) {
-   var command = ["pull"];
-   var handler = Git.trailingFunctionArgument(arguments);
-
-   if (typeof remote === 'string' && typeof branch === 'string') {
-      command.push(remote, branch);
-   }
-
-   Git._appendOptions(command, Git.trailingOptionsArgument(arguments));
-
-   return this._run(command, Git._responseHandler(handler, 'PullSummary'));
+   return this._runTask(
+      pullTask(filterType(remote, filterString), filterType(branch, filterString), getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
@@ -1217,23 +838,18 @@ Git.prototype.pull = function (remote, branch, options, then) {
  * @param {Function} [then]
  */
 Git.prototype.fetch = function (remote, branch, then) {
-   var command = ["fetch"];
-   var next = Git.trailingFunctionArgument(arguments);
-   Git._appendOptions(command, Git.trailingOptionsArgument(arguments));
+   const command = ["fetch"].concat(getTrailingOptions(arguments));
 
    if (typeof remote === 'string' && typeof branch === 'string') {
       command.push(remote, branch);
    }
 
-   if (Array.isArray(remote)) {
-      command = command.concat(remote);
-   }
-
    return this._run(
       command,
-      Git._responseHandler(next, 'FetchSummary'),
+      trailingFunctionArgument(arguments),
       {
-         concatStdErr: true
+         concatStdErr: true,
+         parser: Git.responseParser('FetchSummary'),
       }
    );
 };
@@ -1246,7 +862,7 @@ Git.prototype.fetch = function (remote, branch, then) {
  * @returns {Git}
  */
 Git.prototype.silent = function (silence) {
-   this._silentLogging = !!silence;
+   this._logger.silent(!!silence);
    return this;
 };
 
@@ -1260,9 +876,9 @@ Git.prototype.silent = function (silence) {
  * @param {Function} [then]
  */
 Git.prototype.tags = function (options, then) {
-   this._runTask(
-      tagListTask(Git.getTrailingOptions(arguments)),
-      Git.trailingFunctionArgument(arguments),
+   return this._runTask(
+      tagListTask(getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments),
    );
 };
 
@@ -1275,12 +891,10 @@ Git.prototype.tags = function (options, then) {
  * @returns {Git}
  */
 Git.prototype.rebase = function (options, then) {
-   var command = ['rebase'];
-   Git._appendOptions(command, Git.trailingOptionsArgument(arguments));
-   command.push.apply(command, Git.trailingArrayArgument(arguments));
-
-
-   return this._run(command, Git._responseHandler(Git.trailingFunctionArgument(arguments)));
+   return this._run(
+      ['rebase'].concat(getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments)
+   );
 };
 
 /**
@@ -1291,18 +905,10 @@ Git.prototype.rebase = function (options, then) {
  * @param {Function} [then]
  */
 Git.prototype.reset = function (mode, then) {
-   var command = ['reset'];
-   var next = Git.trailingFunctionArgument(arguments);
-   if (next === mode || typeof mode === 'string' || !mode) {
-      var modeStr = ['mixed', 'soft', 'hard'].includes(mode) ? mode : 'soft';
-      command.push('--' + modeStr);
-   } else if (Array.isArray(mode)) {
-      command.push.apply(command, mode);
-   }
-
-   return this._run(command, function (err) {
-      next && next(err || null);
-   });
+   return this._runTask(
+      resetTask(getResetMode(mode), getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
@@ -1313,21 +919,20 @@ Git.prototype.reset = function (mode, then) {
  * @param {Function} [then]
  */
 Git.prototype.revert = function (commit, options, then) {
-   var next = Git.trailingFunctionArgument(arguments);
-   var command = ['revert'];
-
-   Git._appendOptions(command, Git.trailingOptionsArgument(arguments));
+   const next = trailingFunctionArgument(arguments);
 
    if (typeof commit !== 'string') {
-      return this.exec(function () {
-         next && next(new TypeError("Commit must be a string"));
-      });
+      return this._runTask(
+         configurationErrorTask('Commit must be a string'),
+         next,
+      );
    }
 
-   command.push(commit);
-   return this._run(command, function (err) {
-      next && next(err || null);
-   });
+   return this._run([
+      'revert',
+      ...getTrailingOptions(arguments, 0, true),
+      commit
+   ], next);
 };
 
 /**
@@ -1337,16 +942,11 @@ Git.prototype.revert = function (commit, options, then) {
  * @param {Function} [then]
  */
 Git.prototype.addTag = function (name, then) {
-   if (typeof name !== "string") {
-      return this.exec(function () {
-         then && then(new TypeError("Git.addTag requires a tag name"));
-      });
-   }
+   const task = (typeof name === 'string')
+      ? addTagTask(name)
+      : configurationErrorTask('Git.addTag requires a tag name');
 
-   return this._runTask(
-      addTagTask(name),
-      Git.trailingFunctionArgument(arguments),
-   );
+   return this._runTask(task, trailingFunctionArgument(arguments));
 };
 
 /**
@@ -1359,7 +959,7 @@ Git.prototype.addTag = function (name, then) {
 Git.prototype.addAnnotatedTag = function (tagName, tagMessage, then) {
    return this._runTask(
       addAnnotatedTagTask(tagName, tagMessage),
-      Git.trailingFunctionArgument(arguments),
+      trailingFunctionArgument(arguments),
    );
 };
 
@@ -1371,12 +971,11 @@ Git.prototype.addAnnotatedTag = function (tagName, tagMessage, then) {
  * @param {Function} [then]
  */
 Git.prototype.checkout = function (what, then) {
-   var command = ['checkout'];
-   command = command.concat(what);
-
-   return this._run(command, function (err, data) {
-      then && then(err, !err && data);
-   });
+   const commands = ['checkout', ...getTrailingOptions(arguments, true)];
+   return this._runTask(
+      straightThroughStringTask(commands),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
@@ -1387,17 +986,14 @@ Git.prototype.checkout = function (what, then) {
  * @param {Function} [then]
  */
 Git.prototype.checkoutBranch = function (branchName, startPoint, then) {
-   return this.checkout(['-b', branchName, startPoint], then);
+   return this.checkout(['-b', branchName, startPoint], trailingFunctionArgument(arguments));
 };
 
 /**
  * Check out a local branch
- *
- * @param {string} branchName of branch
- * @param {Function} [then]
  */
 Git.prototype.checkoutLocalBranch = function (branchName, then) {
-   return this.checkout(['-b', branchName], then);
+   return this.checkout(['-b', branchName], trailingFunctionArgument(arguments));
 };
 
 /**
@@ -1406,7 +1002,7 @@ Git.prototype.checkoutLocalBranch = function (branchName, then) {
 Git.prototype.deleteLocalBranch = function (branchName, forceDelete, then) {
    return this._runTask(
       deleteBranchTask(branchName, typeof forceDelete === "boolean" ? forceDelete : false),
-      Git.trailingFunctionArgument(arguments),
+      trailingFunctionArgument(arguments),
    );
 };
 
@@ -1416,7 +1012,7 @@ Git.prototype.deleteLocalBranch = function (branchName, forceDelete, then) {
 Git.prototype.deleteLocalBranches = function (branchNames, forceDelete, then) {
    return this._runTask(
       deleteBranchesTask(branchNames, typeof forceDelete === "boolean" ? forceDelete : false),
-      Git.trailingFunctionArgument(arguments),
+      trailingFunctionArgument(arguments),
    );
 };
 
@@ -1427,13 +1023,9 @@ Git.prototype.deleteLocalBranches = function (branchNames, forceDelete, then) {
  * @param {Function} [then]
  */
 Git.prototype.branch = function (options, then) {
-   var command = [];
-   Git._appendOptions(command, Git.trailingOptionsArgument(arguments));
-   command.push.apply(command, Git.trailingArrayArgument(arguments));
-
    return this._runTask(
-      branchTask(command),
-      Git.trailingFunctionArgument(arguments),
+      branchTask(getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments),
    );
 };
 
@@ -1445,7 +1037,7 @@ Git.prototype.branch = function (options, then) {
 Git.prototype.branchLocal = function (then) {
    return this._runTask(
       branchLocalTask(),
-      Git.trailingFunctionArgument(arguments),
+      trailingFunctionArgument(arguments),
    );
 };
 
@@ -1460,194 +1052,108 @@ Git.prototype.branchLocal = function (then) {
 Git.prototype.addConfig = function (key, value, append, then) {
    return this._runTask(
       addConfigTask(key, value, typeof append === "boolean" ? append : false),
-      Git.trailingFunctionArgument(arguments),
+      trailingFunctionArgument(arguments),
    );
 };
 
 Git.prototype.listConfig = function () {
-   return this._runTask(listConfigTask(), Git.trailingFunctionArgument(arguments));
+   return this._runTask(listConfigTask(), trailingFunctionArgument(arguments));
 };
 
 /**
  * Executes any command against the git binary.
- *
- * @param {string[]|Object} commands
- * @param {Function} [then]
- *
- * @returns {Git}
  */
-Git.prototype.raw = function (commands, then) {
-   var command = [];
-   if (Array.isArray(commands)) {
-      command = commands.slice(0);
-   } else {
-      Git._appendOptions(command, Git.trailingOptionsArgument(arguments));
+Git.prototype.raw = function (commands) {
+   const createRestCommands = !Array.isArray(commands);
+   const command = [].slice.call(createRestCommands ? arguments : commands, 0);
+
+   for (let i = 0; i < command.length && createRestCommands; i++) {
+      if (!filterPrimitives(command[i])) {
+         command.splice(i, command.length - i);
+         break;
+      }
    }
 
-   var next = Git.trailingFunctionArgument(arguments);
+   command.push(
+      ...getTrailingOptions(arguments, 0, true),
+   );
+
+   var next = trailingFunctionArgument(arguments);
 
    if (!command.length) {
-      return this.exec(function () {
-         next && next(new Error('Raw: must supply one or more command to execute'), null);
-      });
+      return this._runTask(
+         configurationErrorTask('Raw: must supply one or more command to execute'),
+         next,
+      );
    }
 
-   return this._run(command, function (err, data) {
-      next && next(err, !err && data || null);
-   });
+   return this._run(command, next);
 };
 
-/**
- * Add a submodule
- *
- * @param {string} repo
- * @param {string} path
- * @param {Function} [then]
- */
 Git.prototype.submoduleAdd = function (repo, path, then) {
-   return this._run(['submodule', 'add', repo, path], function (err) {
-      then && then(err);
-   });
+   return this._runTask(
+      addSubModuleTask(repo, path),
+      trailingFunctionArgument(arguments),
+   );
 };
 
-/**
- * Update submodules
- *
- * @param {string[]} [args]
- * @param {Function} [then]
- */
 Git.prototype.submoduleUpdate = function (args, then) {
-   if (typeof args === 'string') {
-      this._getLog('warn', 'Git#submoduleUpdate: args should be supplied as an array of individual arguments');
-   }
-
-   var next = Git.trailingFunctionArgument(arguments);
-   var command = (args !== next) ? args : [];
-
-   return this.subModule(['update'].concat(command), function (err, args) {
-      next && next(err, args);
-   });
+   return this._runTask(
+      updateSubModuleTask(getTrailingOptions(arguments, true)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
-/**
- * Initialize submodules
- *
- * @param {string[]} [args]
- * @param {Function} [then]
- */
 Git.prototype.submoduleInit = function (args, then) {
-   if (typeof args === 'string') {
-      this._getLog('warn', 'Git#submoduleInit: args should be supplied as an array of individual arguments');
-   }
-
-   var next = Git.trailingFunctionArgument(arguments);
-   var command = (args !== next) ? args : [];
-
-   return this.subModule(['init'].concat(command), function (err, args) {
-      next && next(err, args);
-   });
+   return this._runTask(
+      initSubModuleTask(getTrailingOptions(arguments, true)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
-/**
- * Call any `git submodule` function with arguments passed as an array of strings.
- *
- * @param {string[]} options
- * @param {Function} [then]
- */
 Git.prototype.subModule = function (options, then) {
-   if (!Array.isArray(options)) {
-      return this.exec(function () {
-         then && then(new TypeError("Git.subModule requires an array of arguments"));
-      });
-   }
-
-   if (options[0] !== 'submodule') {
-      options.unshift('submodule');
-   }
-
-   return this._run(options, function (err, data) {
-      then && then(err || null, err ? null : data);
-   });
+   return this._runTask(
+      subModuleTask(getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
-/**
- * List remote
- *
- * @param {string[]} [args]
- * @param {Function} [then]
- */
-Git.prototype.listRemote = function (args, then) {
-   var next = Git.trailingFunctionArgument(arguments);
-   var data = next === args || args === undefined ? [] : args;
-
-   if (typeof data === 'string') {
-      this._getLog('warn', 'Git#listRemote: args should be supplied as an array of individual arguments');
-   }
-
-   return this._run(['ls-remote'].concat(data), function (err, data) {
-      next && next(err, data);
-   });
+Git.prototype.listRemote = function () {
+   return this._runTask(
+      listRemotesTask(getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
  * Adds a remote to the list of remotes.
- *
- * @param {string} remoteName Name of the repository - eg "upstream"
- * @param {string} remoteRepo Fully qualified SSH or HTTP(S) path to the remote repo
- * @param {Function} [then]
- * @returns {*}
  */
 Git.prototype.addRemote = function (remoteName, remoteRepo, then) {
-   return this._run(['remote', 'add', remoteName, remoteRepo], function (err) {
-      then && then(err);
-   });
+   return this._runTask(
+      addRemoteTask(remoteName, remoteRepo, getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
- * Removes an entry from the list of remotes.
- *
- * @param {string} remoteName Name of the repository - eg "upstream"
- * @param {Function} [then]
- * @returns {*}
+ * Removes an entry by name from the list of remotes.
  */
 Git.prototype.removeRemote = function (remoteName, then) {
-   return this._run(['remote', 'remove', remoteName], function (err) {
-      then && then(err);
-   });
+   return this._runTask(
+      removeRemoteTask(remoteName),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
  * Gets the currently available remotes, setting the optional verbose argument to true includes additional
  * detail on the remotes themselves.
- *
- * @param {boolean} [verbose=false]
- * @param {Function} [then]
  */
 Git.prototype.getRemotes = function (verbose, then) {
-   var next = Git.trailingFunctionArgument(arguments);
-   var args = verbose === true ? ['-v'] : [];
-
-   return this.remote(args, function (err, data) {
-      next && next(err, !err && function () {
-         return data.trim().split('\n').filter(Boolean).reduce(function (remotes, remote) {
-            var detail = remote.trim().split(/\s+/);
-            var name = detail.shift();
-
-            if (!remotes[name]) {
-               remotes[name] = remotes[remotes.length] = {
-                  name: name,
-                  refs: {}
-               };
-            }
-
-            if (detail.length) {
-               remotes[name].refs[detail.pop().replace(/[^a-z]/g, '')] = detail.pop();
-            }
-
-            return remotes;
-         }, []).slice(0);
-      }());
-   });
+   return this._runTask(
+      getRemotesTask(verbose === true),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
@@ -1657,19 +1163,10 @@ Git.prototype.getRemotes = function (verbose, then) {
  * @param {Function} [then]
  */
 Git.prototype.remote = function (options, then) {
-   if (!Array.isArray(options)) {
-      return this.exec(function () {
-         then && then(new TypeError("Git.remote requires an array of arguments"));
-      });
-   }
-
-   if (options[0] !== 'remote') {
-      options.unshift('remote');
-   }
-
-   return this._run(options, function (err, data) {
-      then && then(err || null, err ? null : data);
-   });
+   return this._runTask(
+      remoteTask(getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
@@ -1681,18 +1178,17 @@ Git.prototype.remote = function (options, then) {
  * @param {string[]} [options]
  * @param {Function} [then]
  */
-Git.prototype.mergeFromTo = function (from, to, options, then) {
-   var commands = [
-      from,
-      to
-   ];
-   var callback = Git.trailingFunctionArgument(arguments);
-
-   if (Array.isArray(options)) {
-      commands = commands.concat(options);
+Git.prototype.mergeFromTo = function (from, to) {
+   if (!(filterString(from) && filterString(to))) {
+      return this._runTask(configurationErrorTask(
+         `Git.mergeFromTo requires that the 'from' and 'to' arguments are supplied as strings`
+      ));
    }
 
-   return this.merge(commands, callback);
+   return this._runTask(
+      mergeTask([from, to, ...getTrailingOptions(arguments)]),
+      trailingFunctionArgument(arguments, false),
+   );
 };
 
 /**
@@ -1711,34 +1207,11 @@ Git.prototype.mergeFromTo = function (from, to, options, then) {
  * @see ./responses/MergeSummary.js
  * @see ./responses/PullSummary.js
  */
-Git.prototype.merge = function (options, then) {
-   var self = this;
-   var userHandler = Git.trailingFunctionArgument(arguments) || NOOP;
-   var mergeHandler = function (err, mergeSummary) {
-      if (!err && mergeSummary.failed) {
-         return Git.fail(self, mergeSummary, userHandler);
-      }
-
-      userHandler(err, mergeSummary);
-   };
-
-   var command = [];
-   Git._appendOptions(command, Git.trailingOptionsArgument(arguments));
-   command.push.apply(command, Git.trailingArrayArgument(arguments));
-
-   if (command[0] !== 'merge') {
-      command.unshift('merge');
-   }
-
-   if (command.length === 1) {
-      return this.exec(function () {
-         then && then(new TypeError("Git.merge requires at least one option"));
-      });
-   }
-
-   return this._run(command, Git._responseHandler(mergeHandler, 'MergeSummary'), {
-      concatStdErr: true
-   });
+Git.prototype.merge = function () {
+   return this._runTask(
+      mergeTask(getTrailingOptions(arguments)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
@@ -1748,16 +1221,13 @@ Git.prototype.merge = function (options, then) {
  * @param {Function} [then]
  */
 Git.prototype.tag = function (options, then) {
-
-   var command = [];
-   Git._appendOptions(command, Git.trailingOptionsArgument(arguments));
-   command.push.apply(command, Git.trailingArrayArgument(arguments));
+   const command = getTrailingOptions(arguments);
 
    if (command[0] !== 'tag') {
       command.unshift('tag');
    }
 
-   return this._run(command, Git._responseHandler(Git.trailingFunctionArgument(arguments)));
+   return this._run(command, trailingFunctionArgument(arguments));
 };
 
 /**
@@ -1766,9 +1236,7 @@ Git.prototype.tag = function (options, then) {
  * @param {Function} [then]
  */
 Git.prototype.updateServerInfo = function (then) {
-   return this._run(["update-server-info"], function (err, data) {
-      then && then(err, !err && data);
-   });
+   return this._run(["update-server-info"], trailingFunctionArgument(arguments));
 };
 
 /**
@@ -1780,26 +1248,11 @@ Git.prototype.updateServerInfo = function (then) {
  * @param {Function} [then]
  */
 Git.prototype.push = function (remote, branch, then) {
-   var command = [];
-   var handler = Git.trailingFunctionArgument(arguments);
-
-   if (typeof remote === 'string' && typeof branch === 'string') {
-      command.push(remote, branch);
-   }
-
-   if (Array.isArray(remote)) {
-      command = command.concat(remote);
-   }
-
-   Git._appendOptions(command, Git.trailingOptionsArgument(arguments));
-
-   if (command[0] !== 'push') {
-      command.unshift('push');
-   }
-
-   return this._run(command, function (err, data) {
-      handler && handler(err, !err && data);
-   });
+   const task = pushTask(
+      {remote: filterType(remote, filterString), branch: filterType(branch, filterString)},
+      getTrailingOptions(arguments),
+   );
+   return this._runTask(task, trailingFunctionArgument(arguments));
 };
 
 /**
@@ -1810,17 +1263,9 @@ Git.prototype.push = function (remote, branch, then) {
  * @param {Function} [then]
  */
 Git.prototype.pushTags = function (remote, then) {
-   var command = ['push'];
-   if (typeof remote === "string") {
-      command.push(remote);
-   }
-   command.push('--tags');
+   const task = pushTagsTask({remote: filterType(remote, filterString)}, getTrailingOptions(arguments));
 
-   then = typeof arguments[arguments.length - 1] === "function" ? arguments[arguments.length - 1] : null;
-
-   return this._run(command, function (err, data) {
-      then && then(err, !err && data);
-   });
+   return this._runTask(task, trailingFunctionArgument(arguments));
 };
 
 /**
@@ -1868,81 +1313,59 @@ Git.prototype.binaryCatFile = function (options, then) {
 };
 
 Git.prototype._catFile = function (format, args) {
-   var handler = Git.trailingFunctionArgument(args);
+   var handler = trailingFunctionArgument(args);
    var command = ['cat-file'];
    var options = args[0];
 
    if (typeof options === 'string') {
-      throw new TypeError('Git#catFile: options must be supplied as an array of strings');
-   } else if (Array.isArray(options)) {
+      return this._runTask(
+         configurationErrorTask('Git#catFile: options must be supplied as an array of strings'),
+         handler,
+      );
+   }
+
+   if (Array.isArray(options)) {
       command.push.apply(command, options);
    }
 
-   return this._run(command, function (err, data) {
-      handler && handler(err, data);
-   }, {
+   return this._run(command, handler, {
       format: format
    });
 };
 
 /**
  * Return repository changes.
- *
- * @param {string[]} [options]
- * @param {Function} [then]
  */
 Git.prototype.diff = function (options, then) {
-   var command = ['diff'];
+   const command = ['diff', ...getTrailingOptions(arguments)];
 
    if (typeof options === 'string') {
-      command[0] += ' ' + options;
-      this._getLog('warn',
-         'Git#diff: supplying options as a single string is now deprecated, switch to an array of strings');
-   } else if (Array.isArray(options)) {
-      command.push.apply(command, options);
+      command.splice(1, 0, options);
+      this._logger.warn('Git#diff: supplying options as a single string is now deprecated, switch to an array of strings');
    }
 
-   if (typeof arguments[arguments.length - 1] === 'function') {
-      then = arguments[arguments.length - 1];
-   }
-
-   return this._run(command, function (err, data) {
-      then && then(err, data);
-   });
+   return this._runTask(
+      straightThroughStringTask(command),
+      trailingFunctionArgument(arguments),
+   );
 };
 
-Git.prototype.diffSummary = function (options, then) {
-   var next = Git.trailingFunctionArgument(arguments);
-   var command = ['--stat=4096'];
-
-   if (options && options !== next) {
-      command.push.apply(command, [].concat(options));
-   }
-
-   return this.diff(command, Git._responseHandler(next, 'DiffSummary'));
+Git.prototype.diffSummary = function () {
+   return this._run(
+      ['diff', '--stat=4096', ...getTrailingOptions(arguments, true)],
+      trailingFunctionArgument(arguments),
+      {
+         parser: Git.responseParser('DiffSummary'),
+      }
+   );
 };
 
-/**
- * Wraps `git rev-parse`. Primarily used to convert friendly commit references (ie branch names) to SHA1 hashes.
- *
- * Options should be an array of string options compatible with the `git rev-parse`
- *
- * @param {string|string[]} [options]
- * @param {Function} [then]
- *
- * @see https://git-scm.com/docs/git-rev-parse
- */
 Git.prototype.revparse = function (options, then) {
-   var next = Git.trailingFunctionArgument(arguments) || NOOP;
-   var command = ['rev-parse'];
-
-   if (typeof options === 'string' || Array.isArray(options)) {
-      command = command.concat(options);
-   }
-
-   return this._run(command, function (err, data) {
-      err ? next(err) : next(null, String(data).trim());
-   });
+   const commands = ['rev-parse', ...getTrailingOptions(arguments, true)];
+   return this._runTask(
+      straightThroughStringTask(commands, true),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
@@ -1952,7 +1375,7 @@ Git.prototype.revparse = function (options, then) {
  * @param {Function} [then]
  */
 Git.prototype.show = function (options, then) {
-   var handler = Git.trailingFunctionArgument(arguments) || NOOP;
+   var handler = trailingFunctionArgument(arguments) || NOOP;
 
    var command = ['show'];
    if (typeof options === 'string' || Array.isArray(options)) {
@@ -1965,47 +1388,16 @@ Git.prototype.show = function (options, then) {
 };
 
 /**
- * @param {string} mode Required parameter "n" or "f"
- * @param {string[]} options
- * @param {Function} [then]
  */
 Git.prototype.clean = function (mode, options, then) {
-   var handler = Git.trailingFunctionArgument(arguments);
+   const usingCleanOptionsArray = isCleanOptionsArray(mode);
+   const cleanMode = usingCleanOptionsArray && mode.join('') || filterType(mode, filterString) || '';
+   const customArgs = getTrailingOptions([].slice.call(arguments, usingCleanOptionsArray ? 1 : 0));
 
-   if (typeof mode !== 'string' || !/[nf]/.test(mode)) {
-      return this.exec(function () {
-         handler && handler(new TypeError('Git clean mode parameter ("n" or "f") is required'));
-      });
-   }
-
-   if (/[^dfinqxX]/.test(mode)) {
-      return this.exec(function () {
-         handler && handler(new TypeError('Git clean unknown option found in ' + JSON.stringify(mode)));
-      });
-   }
-
-   var command = ['clean', '-' + mode];
-   if (Array.isArray(options)) {
-      command = command.concat(options);
-   }
-
-   if (command.some(interactiveMode)) {
-      return this.exec(function () {
-         handler && handler(new TypeError('Git clean interactive mode is not supported'));
-      });
-   }
-
-   return this._run(command, function (err, data) {
-      handler && handler(err, !err && data);
-   });
-
-   function interactiveMode (option) {
-      if (/^-[^\-]/.test(option)) {
-         return option.indexOf('i') > 0;
-      }
-
-      return option === '--interactive';
-   }
+   return this._runTask(
+      cleanWithOptionsTask(cleanMode, customArgs),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 /**
@@ -2024,22 +1416,6 @@ Git.prototype.exec = function (then) {
    };
 
    return this._runTask(task);
-};
-
-/**
- * Deprecated means of adding a regular function call at the next step in the chain. Use the replacement
- * Git#exec, the Git#then method will be removed in version 2.x
- *
- * @see exec
- * @deprecated
- */
-Git.prototype.then = function (then) {
-   this._getLog(
-      'error', `
-Git#then is deprecated after version 1.72 and will be removed in version 2.x
-To use promises switch to importing 'simple-git/promise'.`);
-
-   return this.exec(then);
 };
 
 /**
@@ -2063,8 +1439,8 @@ To use promises switch to importing 'simple-git/promise'.`);
  * @param {Function} [then]
  */
 Git.prototype.log = function (options, then) {
-   var handler = Git.trailingFunctionArgument(arguments);
-   var opt = (handler === then ? options : null) || {};
+   var handler = trailingFunctionArgument(arguments);
+   var opt = trailingOptionsArgument(arguments) || {};
 
    var splitter = opt.splitter || requireResponseHandler('ListLogSummary').SPLITTER;
    var format = opt.format || {
@@ -2089,12 +1465,11 @@ Git.prototype.log = function (options, then) {
    + requireResponseHandler('ListLogSummary').COMMIT_BOUNDARY
    ];
 
-   if (Array.isArray(opt)) {
-      command = command.concat(opt);
+   if (filterArray(options)) {
+      command = command.concat(options);
       opt = {};
    } else if (typeof arguments[0] === "string" || typeof arguments[1] === "string") {
-      this._getLog('warn',
-         'Git#log: supplying to or from as strings is now deprecated, switch to an options configuration object');
+      this._logger.warn('Git#log: supplying to or from as strings is now deprecated, switch to an options configuration object');
       opt = {
          from: arguments[0],
          to: arguments[1]
@@ -2117,11 +1492,14 @@ Git.prototype.log = function (options, then) {
       delete opt[key];
    });
 
-   Git._appendOptions(command, opt);
+   appendTaskOptions(opt, command);
 
    return this._run(
       command.concat(suffix),
-      Git._responseHandler(handler, 'ListLogSummary', [splitter, fields])
+      handler,
+      {
+         parser: Git.responseParser('ListLogSummary', [splitter, fields])
+      }
    );
 };
 
@@ -2143,7 +1521,7 @@ Git.prototype.clearQueue = function () {
  * @param {Function} [then]
  */
 Git.prototype.checkIgnore = function (pathnames, then) {
-   var handler = Git.trailingFunctionArgument(arguments);
+   var handler = trailingFunctionArgument(arguments);
    var command = ["check-ignore"];
 
    if (handler !== pathnames) {
@@ -2155,25 +1533,11 @@ Git.prototype.checkIgnore = function (pathnames, then) {
    });
 };
 
-/**
- * Validates that the current repo is a Git repo.
- *
- * @param {Function} [then]
- */
-Git.prototype.checkIsRepo = function (then) {
-   function onError (exitCode, stdErr, done, fail) {
-      if (exitCode === 128 && /(Not a git repository|Kein Git-Repository)/i.test(stdErr)) {
-         return done(false); // TS-TODO, type safety should be 'false'
-      }
-
-      fail(stdErr);
-   }
-
-   function handler (err, isRepo) {
-      then && then(err, String(isRepo).trim() === 'true');
-   }
-
-   return this._run(['rev-parse', '--is-inside-work-tree'], handler, {onError: onError});
+Git.prototype.checkIsRepo = function (checkType, then) {
+   return this._runTask(
+      checkIsRepoTask(filterType(checkType, filterString)),
+      trailingFunctionArgument(arguments),
+   );
 };
 
 Git.prototype._rm = function (_files, options, then) {
@@ -2181,9 +1545,7 @@ Git.prototype._rm = function (_files, options, then) {
    var args = ['rm', options];
    args.push.apply(args, files);
 
-   return this._run(args, function (err) {
-      then && then(err);
-   });
+   return this._run(args, trailingFunctionArgument(arguments));
 };
 
 /**
@@ -2209,30 +1571,37 @@ Git.prototype._run = function (command, then, opt) {
       concatStdErr: false,
       onError: undefined,
       format: 'utf-8',
-   }, opt || {}, {
-      commands: command,
       parser (data) {
          return data;
       }
+   }, opt || {}, {
+      commands: command,
    });
 
    return this._runTask(task, then);
 };
 
 Git.prototype._runTask = function (task, then) {
+   const executor = this[ChainedExecutor] || this._executor.chain();
+   const promise = executor.push(task);
+
    taskCallback(
       task,
-      this._executor.push(task),
+      promise,
       then);
 
-   return this;
+   return Object.create(this, {
+      then: {value: promise.then.bind(promise)},
+      catch: {value: promise.catch.bind(promise)},
+      [ChainedExecutor]: {value: executor},
+   });
 };
 
 /**
  * Handles an exception in the processing of a command.
  */
 Git.fail = function (git, error, handler) {
-   git._getLog('error', error);
+   git._logger.error(error);
 
    git.clearQueue();
 
@@ -2242,101 +1611,16 @@ Git.fail = function (git, error, handler) {
 };
 
 /**
- * Given any number of arguments, returns the last argument if it is a function, otherwise returns null.
- * @returns {Function|null}
- */
-Git.trailingFunctionArgument = function (args) {
-   var trailing = args[args.length - 1];
-   return (typeof trailing === "function") ? trailing : NOOP;
-};
-
-/**
- * Given any number of arguments, returns the trailing options argument, ignoring a trailing function argument
- * if there is one. When not found, the return value is null.
- * @returns {Object|null}
- */
-Git.trailingOptionsArgument = function (args) {
-   var options = args[(args.length - (Git.trailingFunctionArgument(args) !== NOOP ? 2 : 1))];
-   return Object.prototype.toString.call(options) === '[object Object]' ? options : null;
-};
-
-/**
- * Given any number of arguments, returns the trailing options array argument, ignoring a trailing function argument
- * if there is one. When not found, the return value is an empty array.
- * @returns {Array}
- */
-Git.trailingArrayArgument = function (args) {
-   var options = args[(args.length - (Git.trailingFunctionArgument(args) !== NOOP ? 2 : 1))];
-   return Object.prototype.toString.call(options) === '[object Array]' ? options : [];
-};
-
-/**
- * Appends a trailing object, and trailing array of options to a new array and returns that array.
- * @param args
- * @returns {Array}
- */
-Git.getTrailingOptions = function (args) {
-   var command = [];
-   Git._appendOptions(command, Git.trailingOptionsArgument(args));
-   command.push.apply(command, Git.trailingArrayArgument(args));
-
-   return command;
-};
-
-/**
- * Mutates the supplied command array by merging in properties in the options object. When the
- * value of the item in the options object is a string it will be concatenated to the key as
- * a single `name=value` item, otherwise just the name will be used.
+ * Creates a parser for a task
  *
- * @param {string[]} command
- * @param {Object} options
- * @private
+ * @param {string} type
+ * @param {any[]} [args]
  */
-Git._appendOptions = function (command, options) {
-   if (options === null) {
-      return;
-   }
-
-   Object.keys(options).forEach(function (key) {
-      var value = options[key];
-      if (typeof value === 'string') {
-         command.push(key + '=' + value);
-      } else {
-         command.push(key);
-      }
-   });
-};
-
-/**
- * Given the type of response and the callback to receive the parsed response,
- * uses the correct parser and calls back the callback.
- *
- * @param {Function} callback
- * @param {string} [type]
- * @param {Object[]} [args]
- *
- * @private
- */
-Git._responseHandler = function (callback, type, args) {
-   return function (error, data) {
-      if (typeof callback !== 'function') {
-         return;
-      }
-
-      if (error) {
-         return callback(error, null);
-      }
-
-      if (!type) {
-         return callback(null, data);
-      }
-
-      var handler = requireResponseHandler(type);
-      var result = handler.parse.apply(handler, [data].concat(args === undefined ? [] : args));
-
-      callback(null, result);
+Git.responseParser = function (type, args) {
+   const handler = requireResponseHandler(type);
+   return function (data) {
+      return handler.parse.apply(handler, [data].concat(args === undefined ? [] : args));
    };
-
 };
 
 /**
@@ -2367,6 +1651,209 @@ function requireResponseHandler (type) {
    return responses[type];
 }
 
+
+/***/ }),
+
+/***/ 76:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+class PullSummary {
+    constructor() {
+        this.remoteMessages = {
+            all: [],
+        };
+        this.created = [];
+        this.deleted = [];
+        this.files = [];
+        this.deletions = {};
+        this.insertions = {};
+        this.summary = {
+            changes: 0,
+            deletions: 0,
+            insertions: 0,
+        };
+    }
+}
+exports.PullSummary = PullSummary;
+//# sourceMappingURL=PullSummary.js.map
+
+/***/ }),
+
+/***/ 77:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const child_process_1 = __webpack_require__(4);
+const api_1 = __webpack_require__(752);
+const task_1 = __webpack_require__(614);
+const tasks_pending_queue_1 = __webpack_require__(958);
+const utils_1 = __webpack_require__(532);
+class GitExecutorChain {
+    constructor(_executor, _scheduler) {
+        this._executor = _executor;
+        this._scheduler = _scheduler;
+        this._chain = Promise.resolve();
+        this._queue = new tasks_pending_queue_1.TasksPendingQueue();
+    }
+    get binary() {
+        return this._executor.binary;
+    }
+    get outputHandler() {
+        return this._executor.outputHandler;
+    }
+    get cwd() {
+        return this._executor.cwd;
+    }
+    get env() {
+        return this._executor.env;
+    }
+    push(task) {
+        this._queue.push(task);
+        return this._chain = this._chain.then(() => this.attemptTask(task));
+    }
+    attemptTask(task) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const onScheduleComplete = yield this._scheduler.next();
+            const onQueueComplete = () => this._queue.complete(task);
+            try {
+                const { logger } = this._queue.attempt(task);
+                return yield (task_1.isEmptyTask(task)
+                    ? this.attemptEmptyTask(task, logger)
+                    : this.attemptRemoteTask(task, logger));
+            }
+            catch (e) {
+                throw this.onFatalException(task, e);
+            }
+            finally {
+                onQueueComplete();
+                onScheduleComplete();
+            }
+        });
+    }
+    onFatalException(task, e) {
+        const gitError = (e instanceof api_1.GitError) ? Object.assign(e, { task }) : new api_1.GitError(task, e && String(e));
+        this._chain = Promise.resolve();
+        this._queue.fatal(gitError);
+        return gitError;
+    }
+    attemptRemoteTask(task, logger) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const raw = yield this.gitResponse(this.binary, task.commands, this.outputHandler, logger.step('SPAWN'));
+            const outputStreams = yield this.handleTaskData(task, raw, logger.step('HANDLE'));
+            logger(`passing response to task's parser as a %s`, task.format);
+            if (task_1.isBufferTask(task)) {
+                return utils_1.callTaskParser(task.parser, outputStreams);
+            }
+            return utils_1.callTaskParser(task.parser, outputStreams.asStrings());
+        });
+    }
+    attemptEmptyTask(task, logger) {
+        return __awaiter(this, void 0, void 0, function* () {
+            logger(`empty task bypassing child process to call to task's parser`);
+            return task.parser();
+        });
+    }
+    handleTaskData({ onError, concatStdErr }, { exitCode, stdOut, stdErr }, logger) {
+        return new Promise((done, fail) => {
+            logger(`Preparing to handle process response exitCode=%d stdOut=`, exitCode);
+            if (exitCode && stdErr.length && onError) {
+                logger.info(`exitCode=%s handling with custom error handler`);
+                logger(`concatenate stdErr to stdOut: %j`, concatStdErr);
+                return onError(exitCode, Buffer.concat([...(concatStdErr ? stdOut : []), ...stdErr]).toString('utf-8'), (result) => {
+                    logger.info(`custom error handler treated as success`);
+                    logger(`custom error returned a %s`, utils_1.objectToString(result));
+                    done(new utils_1.GitOutputStreams(Buffer.isBuffer(result) ? result : Buffer.from(String(result)), Buffer.concat(stdErr)));
+                }, fail);
+            }
+            if (exitCode && stdErr.length) {
+                logger.info(`exitCode=%s treated as error when then child process has written to stdErr`);
+                return fail(Buffer.concat(stdErr).toString('utf-8'));
+            }
+            if (concatStdErr) {
+                logger(`concatenating stdErr onto stdOut before processing`);
+                logger(`stdErr: $O`, stdErr);
+                stdOut.push(...stdErr);
+            }
+            logger.info(`retrieving task output complete`);
+            done(new utils_1.GitOutputStreams(Buffer.concat(stdOut), Buffer.concat(stdErr)));
+        });
+    }
+    gitResponse(command, args, outputHandler, logger) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const outputLogger = logger.sibling('output');
+            const spawnOptions = {
+                cwd: this.cwd,
+                env: this.env,
+                windowsHide: true,
+            };
+            return new Promise((done) => {
+                const stdOut = [];
+                const stdErr = [];
+                let attempted = false;
+                function attemptClose(exitCode, event = 'retry') {
+                    // closing when there is content, terminate immediately
+                    if (attempted || stdErr.length || stdOut.length) {
+                        logger.info(`exitCode=%s event=%s`, exitCode, event);
+                        done({
+                            stdOut,
+                            stdErr,
+                            exitCode,
+                        });
+                        attempted = true;
+                        outputLogger.destroy();
+                    }
+                    // first attempt at closing but no content yet, wait briefly for the close/exit that may follow
+                    if (!attempted) {
+                        attempted = true;
+                        setTimeout(() => attemptClose(exitCode, 'deferred'), 50);
+                        logger('received %s event before content on stdOut/stdErr', event);
+                    }
+                }
+                logger.info(`%s %o`, command, args);
+                logger('%O', spawnOptions);
+                const spawned = child_process_1.spawn(command, args, spawnOptions);
+                spawned.stdout.on('data', onDataReceived(stdOut, 'stdOut', logger, outputLogger.step('stdOut')));
+                spawned.stderr.on('data', onDataReceived(stdErr, 'stdErr', logger, outputLogger.step('stdErr')));
+                spawned.on('error', onErrorReceived(stdErr, logger));
+                spawned.on('close', (code) => attemptClose(code, 'close'));
+                spawned.on('exit', (code) => attemptClose(code, 'exit'));
+                if (outputHandler) {
+                    logger(`Passing child process stdOut/stdErr to custom outputHandler`);
+                    outputHandler(command, spawned.stdout, spawned.stderr, [...args]);
+                }
+            });
+        });
+    }
+}
+exports.GitExecutorChain = GitExecutorChain;
+function onErrorReceived(target, logger) {
+    return (err) => {
+        logger(`[ERROR] child process exception %o`, err);
+        target.push(Buffer.from(String(err.stack), 'ascii'));
+    };
+}
+function onDataReceived(target, name, logger, output) {
+    return (buffer) => {
+        logger(`%s received %L bytes`, name, buffer);
+        output(`%B`, buffer);
+        target.push(buffer);
+    };
+}
+//# sourceMappingURL=git-executor-chain.js.map
 
 /***/ }),
 
@@ -2635,98 +2122,28 @@ formatters.O = function (v) {
 /***/ }),
 
 /***/ 82:
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ (function(__unusedmodule, exports) {
 
 "use strict";
 
-
-var Type = __webpack_require__(945);
-
-var YAML_DATE_REGEXP = new RegExp(
-  '^([0-9][0-9][0-9][0-9])'          + // [1] year
-  '-([0-9][0-9])'                    + // [2] month
-  '-([0-9][0-9])$');                   // [3] day
-
-var YAML_TIMESTAMP_REGEXP = new RegExp(
-  '^([0-9][0-9][0-9][0-9])'          + // [1] year
-  '-([0-9][0-9]?)'                   + // [2] month
-  '-([0-9][0-9]?)'                   + // [3] day
-  '(?:[Tt]|[ \\t]+)'                 + // ...
-  '([0-9][0-9]?)'                    + // [4] hour
-  ':([0-9][0-9])'                    + // [5] minute
-  ':([0-9][0-9])'                    + // [6] second
-  '(?:\\.([0-9]*))?'                 + // [7] fraction
-  '(?:[ \\t]*(Z|([-+])([0-9][0-9]?)' + // [8] tz [9] tz_sign [10] tz_hour
-  '(?::([0-9][0-9]))?))?$');           // [11] tz_minute
-
-function resolveYamlTimestamp(data) {
-  if (data === null) return false;
-  if (YAML_DATE_REGEXP.exec(data) !== null) return true;
-  if (YAML_TIMESTAMP_REGEXP.exec(data) !== null) return true;
-  return false;
-}
-
-function constructYamlTimestamp(data) {
-  var match, year, month, day, hour, minute, second, fraction = 0,
-      delta = null, tz_hour, tz_minute, date;
-
-  match = YAML_DATE_REGEXP.exec(data);
-  if (match === null) match = YAML_TIMESTAMP_REGEXP.exec(data);
-
-  if (match === null) throw new Error('Date resolve error');
-
-  // match: [1] year [2] month [3] day
-
-  year = +(match[1]);
-  month = +(match[2]) - 1; // JS month starts with 0
-  day = +(match[3]);
-
-  if (!match[4]) { // no hour
-    return new Date(Date.UTC(year, month, day));
-  }
-
-  // match: [4] hour [5] minute [6] second [7] fraction
-
-  hour = +(match[4]);
-  minute = +(match[5]);
-  second = +(match[6]);
-
-  if (match[7]) {
-    fraction = match[7].slice(0, 3);
-    while (fraction.length < 3) { // milli-seconds
-      fraction += '0';
+// We use any as a valid input type
+/* eslint-disable @typescript-eslint/no-explicit-any */
+Object.defineProperty(exports, "__esModule", { value: true });
+/**
+ * Sanitizes an input into a string so it can be passed into issueCommand safely
+ * @param input input to sanitize into a string
+ */
+function toCommandValue(input) {
+    if (input === null || input === undefined) {
+        return '';
     }
-    fraction = +fraction;
-  }
-
-  // match: [8] tz [9] tz_sign [10] tz_hour [11] tz_minute
-
-  if (match[9]) {
-    tz_hour = +(match[10]);
-    tz_minute = +(match[11] || 0);
-    delta = (tz_hour * 60 + tz_minute) * 60000; // delta in mili-seconds
-    if (match[9] === '-') delta = -delta;
-  }
-
-  date = new Date(Date.UTC(year, month, day, hour, minute, second, fraction));
-
-  if (delta) date.setTime(date.getTime() - delta);
-
-  return date;
+    else if (typeof input === 'string' || input instanceof String) {
+        return input;
+    }
+    return JSON.stringify(input);
 }
-
-function representYamlTimestamp(object /*, style*/) {
-  return object.toISOString();
-}
-
-module.exports = new Type('tag:yaml.org,2002:timestamp', {
-  kind: 'scalar',
-  resolve: resolveYamlTimestamp,
-  construct: constructYamlTimestamp,
-  instanceOf: Date,
-  represent: representYamlTimestamp
-});
-
+exports.toCommandValue = toCommandValue;
+//# sourceMappingURL=utils.js.map
 
 /***/ }),
 
@@ -2821,6 +2238,32 @@ module.exports = Mark;
 
 /***/ }),
 
+/***/ 98:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const git_executor_chain_1 = __webpack_require__(77);
+class GitExecutor {
+    constructor(binary = 'git', cwd, _scheduler) {
+        this.binary = binary;
+        this.cwd = cwd;
+        this._scheduler = _scheduler;
+        this._chain = new git_executor_chain_1.GitExecutorChain(this, this._scheduler);
+    }
+    chain() {
+        return new git_executor_chain_1.GitExecutorChain(this, this._scheduler);
+    }
+    push(task) {
+        return this._chain.push(task);
+    }
+}
+exports.GitExecutor = GitExecutor;
+//# sourceMappingURL=git-executor.js.map
+
+/***/ }),
+
 /***/ 100:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -2855,6 +2298,42 @@ module.exports = new Type('tag:yaml.org,2002:set', {
   construct: constructYamlSet
 });
 
+
+/***/ }),
+
+/***/ 102:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+// For internal use, subject to change.
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+// We use any as a valid input type
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const fs = __importStar(__webpack_require__(747));
+const os = __importStar(__webpack_require__(87));
+const utils_1 = __webpack_require__(82);
+function issueCommand(command, message) {
+    const filePath = process.env[`GITHUB_${command}`];
+    if (!filePath) {
+        throw new Error(`Unable to find environment variable for file command ${command}`);
+    }
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`Missing file at path: ${filePath}`);
+    }
+    fs.appendFileSync(filePath, `${utils_1.toCommandValue(message)}${os.EOL}`, {
+        encoding: 'utf8'
+    });
+}
+exports.issueCommand = issueCommand;
+//# sourceMappingURL=file-command.js.map
 
 /***/ }),
 
@@ -2957,6 +2436,29 @@ function binaryFileChange (line, files) {
 
 /***/ }),
 
+/***/ 147:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const BranchSummary_1 = __webpack_require__(672);
+const utils_1 = __webpack_require__(532);
+const parsers = [
+    new utils_1.LineParser(/^(\*\s)?\((?:HEAD )?detached (?:from|at) (\S+)\)\s+([a-z0-9]+)\s(.*)$/, (result, [current, name, commit, label]) => {
+        result.push(!!current, true, name, commit, label);
+    }),
+    new utils_1.LineParser(/^(\*\s)?(\S+)\s+([a-z0-9]+)\s(.*)$/, (result, [current, name, commit, label]) => {
+        result.push(!!current, false, name, commit, label);
+    })
+];
+exports.parseBranchSummary = function (stdOut) {
+    return utils_1.parseStringResponse(new BranchSummary_1.BranchSummaryResult(), parsers, stdOut);
+};
+//# sourceMappingURL=parse-branch.js.map
+
+/***/ }),
+
 /***/ 151:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -3008,11 +2510,181 @@ exports.addAnnotatedTagTask = addAnnotatedTagTask;
 
 /***/ }),
 
+/***/ 152:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const CleanSummary_1 = __webpack_require__(42);
+const utils_1 = __webpack_require__(532);
+const task_1 = __webpack_require__(614);
+exports.CONFIG_ERROR_INTERACTIVE_MODE = 'Git clean interactive mode is not supported';
+exports.CONFIG_ERROR_MODE_REQUIRED = 'Git clean mode parameter ("n" or "f") is required';
+exports.CONFIG_ERROR_UNKNOWN_OPTION = 'Git clean unknown option found in: ';
+/**
+ * All supported option switches available for use in a `git.clean` operation
+ */
+var CleanOptions;
+(function (CleanOptions) {
+    CleanOptions["DRY_RUN"] = "n";
+    CleanOptions["FORCE"] = "f";
+    CleanOptions["IGNORED_INCLUDED"] = "x";
+    CleanOptions["IGNORED_ONLY"] = "X";
+    CleanOptions["EXCLUDING"] = "e";
+    CleanOptions["QUIET"] = "q";
+    CleanOptions["RECURSIVE"] = "d";
+})(CleanOptions = exports.CleanOptions || (exports.CleanOptions = {}));
+const CleanOptionValues = new Set(['i', ...utils_1.asStringArray(Object.values(CleanOptions))]);
+function cleanWithOptionsTask(mode, customArgs) {
+    const { cleanMode, options, valid } = getCleanOptions(mode);
+    if (!cleanMode) {
+        return task_1.configurationErrorTask(exports.CONFIG_ERROR_MODE_REQUIRED);
+    }
+    if (!valid.options) {
+        return task_1.configurationErrorTask(exports.CONFIG_ERROR_UNKNOWN_OPTION + JSON.stringify(mode));
+    }
+    options.push(...customArgs);
+    if (options.some(isInteractiveMode)) {
+        return task_1.configurationErrorTask(exports.CONFIG_ERROR_INTERACTIVE_MODE);
+    }
+    return cleanTask(cleanMode, options);
+}
+exports.cleanWithOptionsTask = cleanWithOptionsTask;
+function cleanTask(mode, customArgs) {
+    const commands = ['clean', `-${mode}`, ...customArgs];
+    return {
+        commands,
+        format: 'utf-8',
+        parser(text) {
+            return CleanSummary_1.cleanSummaryParser(mode === CleanOptions.DRY_RUN, text);
+        }
+    };
+}
+exports.cleanTask = cleanTask;
+function isCleanOptionsArray(input) {
+    return Array.isArray(input) && input.every(test => CleanOptionValues.has(test));
+}
+exports.isCleanOptionsArray = isCleanOptionsArray;
+function getCleanOptions(input) {
+    let cleanMode;
+    let options = [];
+    let valid = { cleanMode: false, options: true };
+    input.replace(/[^a-z]i/g, '').split('').forEach(char => {
+        if (isCleanMode(char)) {
+            cleanMode = char;
+            valid.cleanMode = true;
+        }
+        else {
+            valid.options = valid.options && isKnownOption(options[options.length] = (`-${char}`));
+        }
+    });
+    return {
+        cleanMode,
+        options,
+        valid,
+    };
+}
+function isCleanMode(cleanMode) {
+    return cleanMode === CleanOptions.FORCE || cleanMode === CleanOptions.DRY_RUN;
+}
+function isKnownOption(option) {
+    return /^-[a-z]$/i.test(option) && CleanOptionValues.has(option.charAt(1));
+}
+function isInteractiveMode(option) {
+    if (/^-[^\-]/.test(option)) {
+        return option.indexOf('i') > 0;
+    }
+    return option === '--interactive';
+}
+//# sourceMappingURL=clean.js.map
+
+/***/ }),
+
+/***/ 162:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const utils_1 = __webpack_require__(532);
+const parsers = [
+    new utils_1.LineParser(/^Renaming (.+) to (.+)$/, (result, [from, to]) => {
+        result.moves.push({ from, to });
+    }),
+];
+exports.parseMoveResult = function (stdOut) {
+    return utils_1.parseStringResponse({ moves: [] }, parsers, stdOut);
+};
+//# sourceMappingURL=parse-move.js.map
+
+/***/ }),
+
+/***/ 184:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+class MergeSummaryConflict {
+    constructor(reason, file = null, meta) {
+        this.reason = reason;
+        this.file = file;
+        this.meta = meta;
+    }
+    toString() {
+        return `${this.file}:${this.reason}`;
+    }
+}
+exports.MergeSummaryConflict = MergeSummaryConflict;
+class MergeSummaryDetail {
+    constructor() {
+        this.conflicts = [];
+        this.merges = [];
+        this.result = 'success';
+    }
+    get failed() {
+        return this.conflicts.length > 0;
+    }
+    get reason() {
+        return this.result;
+    }
+    toString() {
+        if (this.conflicts.length) {
+            return `CONFLICTS: ${this.conflicts.join(', ')}`;
+        }
+        return 'OK';
+    }
+}
+exports.MergeSummaryDetail = MergeSummaryDetail;
+//# sourceMappingURL=MergeSummary.js.map
+
+/***/ }),
+
 /***/ 198:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -3021,13 +2693,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
-};
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
@@ -3043,6 +2708,7 @@ function run() {
             const rules = yield helpers_1.getYamlRules(configFile);
             for (const rule of rules) {
                 const match = yield finder_1.ruleProducesDiffChange(rule, baseRef);
+                core.info(`Match for ${rule.paths} = ${match}`);
                 if (match) {
                     core.info('Git diff rule detected changes.');
                     core.exportVariable('DIFF_DETECTED', 'true');
@@ -3053,7 +2719,7 @@ function run() {
             core.exportVariable('DIFF_DETECTED', 'false');
         }
         catch (err) {
-            core.setFailed(err.message);
+            core.setFailed(`Action failed with error ${err}`);
         }
     });
 }
@@ -3244,50 +2910,203 @@ module.exports = {
 
 /***/ }),
 
-/***/ 265:
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ 248:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
+"use strict";
 
-var fs = __webpack_require__(747);
-
-function exists (path, isFile, isDirectory) {
-   try {
-      var matches = false;
-      var stat = fs.statSync(path);
-
-      matches = matches || isFile && stat.isFile();
-      matches = matches || isDirectory && stat.isDirectory();
-
-      return matches;
-   }
-   catch (e) {
-      if (e.code === 'ENOENT') {
-         return false;
-      }
-
-      throw e;
-   }
-}
-
-module.exports = function (path, type) {
-   if (!type) {
-      return exists(path, true, true);
-   }
-
-   return exists(path, type & 1, type & 2);
+Object.defineProperty(exports, "__esModule", { value: true });
+const debug_1 = __webpack_require__(784);
+const utils_1 = __webpack_require__(532);
+debug_1.default.formatters.L = (value) => String(utils_1.filterHasLength(value) ? value.length : '-');
+debug_1.default.formatters.B = (value) => {
+    if (Buffer.isBuffer(value)) {
+        return value.toString('utf8');
+    }
+    return utils_1.objectToString(value);
 };
-
-module.exports.FILE = 1;
-
-module.exports.FOLDER = 2;
-
+/**
+ * The shared debug logging instance
+ */
+exports.log = debug_1.default('simple-git');
+function prefixedLogger(to, prefix, forward) {
+    if (!prefix || !String(prefix).replace(/\s*/, '')) {
+        return !forward ? to : (message, ...args) => {
+            to(message, ...args);
+            forward(message, ...args);
+        };
+    }
+    return (message, ...args) => {
+        to(`%s ${message}`, prefix, ...args);
+        if (forward) {
+            forward(message, ...args);
+        }
+    };
+}
+function childLoggerName(name, childDebugger, { namespace: parentNamespace }) {
+    if (typeof name === 'string') {
+        return name;
+    }
+    const childNamespace = childDebugger && childDebugger.namespace || '';
+    if (childNamespace.startsWith(parentNamespace)) {
+        return childNamespace.substr(parentNamespace.length + 1);
+    }
+    return childNamespace || parentNamespace;
+}
+function createLogger(label, verbose, initialStep, infoDebugger = exports.log) {
+    const labelPrefix = label && `[${label}]` || '';
+    const spawned = [];
+    const debugDebugger = (typeof verbose === 'string') ? infoDebugger.extend(verbose) : verbose;
+    const key = childLoggerName(utils_1.filterType(verbose, utils_1.filterString), debugDebugger, infoDebugger);
+    const kill = ((debugDebugger === null || debugDebugger === void 0 ? void 0 : debugDebugger.destroy) || utils_1.NOOP).bind(debugDebugger);
+    return step(initialStep);
+    function destroy() {
+        kill();
+        spawned.forEach(logger => logger.destroy());
+        spawned.length = 0;
+    }
+    function child(name) {
+        return utils_1.append(spawned, createLogger(label, debugDebugger && debugDebugger.extend(name) || name));
+    }
+    function sibling(name, initial) {
+        return utils_1.append(spawned, createLogger(label, key.replace(/^[^:]+/, name), initial, infoDebugger));
+    }
+    function step(phase) {
+        const stepPrefix = phase && `[${phase}]` || '';
+        const debug = debugDebugger && prefixedLogger(debugDebugger, stepPrefix) || utils_1.NOOP;
+        const info = prefixedLogger(infoDebugger, `${labelPrefix} ${stepPrefix}`, debug);
+        return Object.assign(debugDebugger ? debug : info, {
+            key,
+            label,
+            child,
+            sibling,
+            debug,
+            info,
+            step,
+            destroy,
+        });
+    }
+}
+exports.createLogger = createLogger;
+/**
+ * The `GitLogger` is used by the main `SimpleGit` runner to handle logging
+ * any warnings or errors.
+ */
+class GitLogger {
+    constructor(_out = exports.log) {
+        this._out = _out;
+        this.error = prefixedLogger(_out, '[ERROR]');
+        this.warn = prefixedLogger(_out, '[WARN]');
+    }
+    silent(silence = false) {
+        if (silence !== this._out.enabled) {
+            return;
+        }
+        const { namespace } = this._out;
+        const env = (process.env.DEBUG || '').split(',').filter(s => !!s);
+        const hasOn = env.includes(namespace);
+        const hasOff = env.includes(`-${namespace}`);
+        // enabling the log
+        if (!silence) {
+            if (hasOff) {
+                utils_1.remove(env, `-${namespace}`);
+            }
+            else {
+                env.push(namespace);
+            }
+        }
+        else {
+            if (hasOn) {
+                utils_1.remove(env, namespace);
+            }
+            else {
+                env.push(`-${namespace}`);
+            }
+        }
+        debug_1.default.enable(env.join(','));
+    }
+}
+exports.GitLogger = GitLogger;
+//# sourceMappingURL=git-logger.js.map
 
 /***/ }),
 
-/***/ 293:
-/***/ (function(module) {
+/***/ 266:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
-module.exports = require("buffer");
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const MergeSummary_1 = __webpack_require__(184);
+const utils_1 = __webpack_require__(532);
+const parse_pull_1 = __webpack_require__(773);
+const parsers = [
+    new utils_1.LineParser(/^Auto-merging\s+(.+)$/, (summary, [autoMerge]) => {
+        summary.merges.push(autoMerge);
+    }),
+    new utils_1.LineParser(/^CONFLICT\s+\((.+)\): Merge conflict in (.+)$/, (summary, [reason, file]) => {
+        summary.conflicts.push(new MergeSummary_1.MergeSummaryConflict(reason, file));
+    }),
+    new utils_1.LineParser(/^CONFLICT\s+\((.+\/delete)\): (.+) deleted in (.+) and/, (summary, [reason, file, deleteRef]) => {
+        summary.conflicts.push(new MergeSummary_1.MergeSummaryConflict(reason, file, { deleteRef }));
+    }),
+    new utils_1.LineParser(/^CONFLICT\s+\((.+)\):/, (summary, [reason]) => {
+        summary.conflicts.push(new MergeSummary_1.MergeSummaryConflict(reason, null));
+    }),
+    new utils_1.LineParser(/^Automatic merge failed;\s+(.+)$/, (summary, [result]) => {
+        summary.result = result;
+    }),
+];
+/**
+ * Parse the complete response from `git.merge`
+ */
+exports.parseMergeResult = (stdOut, stdErr) => {
+    return Object.assign(exports.parseMergeDetail(stdOut, stdErr), parse_pull_1.parsePullResult(stdOut, stdErr));
+};
+/**
+ * Parse the merge specific detail (ie: not the content also available in the pull detail) from `git.mnerge`
+ * @param stdOut
+ */
+exports.parseMergeDetail = (stdOut) => {
+    return utils_1.parseStringResponse(new MergeSummary_1.MergeSummaryDetail(), parsers, stdOut);
+};
+//# sourceMappingURL=parse-merge.js.map
+
+/***/ }),
+
+/***/ 294:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const utils_1 = __webpack_require__(532);
+function parseGetRemotes(text) {
+    const remotes = {};
+    forEach(text, ([name]) => remotes[name] = { name });
+    return Object.values(remotes);
+}
+exports.parseGetRemotes = parseGetRemotes;
+function parseGetRemotesVerbose(text) {
+    const remotes = {};
+    forEach(text, ([name, url, purpose]) => {
+        if (!remotes.hasOwnProperty(name)) {
+            remotes[name] = {
+                name: name,
+                refs: { fetch: '', push: '' },
+            };
+        }
+        if (purpose && url) {
+            remotes[name].refs[purpose.replace(/[^a-z]/g, '')] = url;
+        }
+    });
+    return Object.values(remotes);
+}
+exports.parseGetRemotesVerbose = parseGetRemotesVerbose;
+function forEach(text, handler) {
+    utils_1.forEachLineWithContent(text, (line) => handler(line.split(/\s+/)));
+}
+//# sourceMappingURL=GetRemoteSummary.js.map
 
 /***/ }),
 
@@ -3333,38 +3152,65 @@ exports.listConfigTask = listConfigTask;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const util_1 = __webpack_require__(24);
-function taskCallback(task, response, callback = util_1.NOOP) {
+const api_1 = __webpack_require__(752);
+const utils_1 = __webpack_require__(532);
+function taskCallback(task, response, callback = utils_1.NOOP) {
     const onSuccess = (data) => {
         callback(null, data);
     };
     const onError = (err) => {
         if ((err === null || err === void 0 ? void 0 : err.task) === task) {
+            if (err instanceof api_1.GitResponseError) {
+                return callback(addDeprecationNoticeToError(err));
+            }
             callback(err);
         }
     };
     response.then(onSuccess, onError);
 }
 exports.taskCallback = taskCallback;
+function addDeprecationNoticeToError(err) {
+    let log = (name) => {
+        console.warn(`simple-git deprecation notice: accessing GitResponseError.${name} should be GitResponseError.git.${name}`);
+        log = utils_1.NOOP;
+    };
+    return Object.create(err, Object.getOwnPropertyNames(err.git).reduce(descriptorReducer, {}));
+    function descriptorReducer(all, name) {
+        if (name in err) {
+            return all;
+        }
+        all[name] = {
+            enumerable: false,
+            configurable: false,
+            get() {
+                log(name);
+                return err.git[name];
+            },
+        };
+        return all;
+    }
+}
 //# sourceMappingURL=task-callback.js.map
 
 /***/ }),
 
-/***/ 347:
+/***/ 323:
 /***/ (function(__unusedmodule, exports) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-class GitError extends Error {
-    constructor(task, message) {
-        super(message);
-        this.task = task;
-        Object.setPrototypeOf(this, new.target.prototype);
+class GitOutputStreams {
+    constructor(stdOut, stdErr) {
+        this.stdOut = stdOut;
+        this.stdErr = stdErr;
+    }
+    asStrings() {
+        return new GitOutputStreams(this.stdOut.toString('utf8'), this.stdErr.toString('utf8'));
     }
 }
-exports.GitError = GitError;
-//# sourceMappingURL=git-error.js.map
+exports.GitOutputStreams = GitOutputStreams;
+//# sourceMappingURL=git-output-streams.js.map
 
 /***/ }),
 
@@ -3388,7 +3234,8 @@ try {
   var _require = require;
   esprima = _require('esprima');
 } catch (_) {
-  /*global window */
+  /* eslint-disable no-redeclare */
+  /* global window */
   if (typeof window !== 'undefined') esprima = window.esprima;
 }
 
@@ -3484,6 +3331,79 @@ module.exports = (flag, argv) => {
 
 /***/ }),
 
+/***/ 367:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+const Git = __webpack_require__(71);
+const {GitConstructError} = __webpack_require__(752);
+const {createInstanceConfig, folderExists} = __webpack_require__(532);
+
+const api = Object.create(null);
+for (let imported = __webpack_require__(752), keys = Object.keys(imported), i = 0; i < keys.length; i++) {
+   const name = keys[i];
+   if (/^[A-Z]/.test(name)) {
+      api[name] = imported[name];
+   }
+}
+
+/**
+ * Adds the necessary properties to the supplied object to enable it for use as
+ * the default export of a module.
+ *
+ * Eg: `module.exports = esModuleFactory({ something () {} })`
+ */
+module.exports.esModuleFactory = function esModuleFactory (defaultExport) {
+   return Object.defineProperties(defaultExport, {
+      __esModule: {value: true},
+      default: {value: defaultExport},
+   });
+}
+
+module.exports.gitExportFactory = function gitExportFactory (factory, extra) {
+   return Object.assign(function () {
+         return factory.apply(null, arguments);
+      },
+      api,
+      extra || {},
+   );
+};
+
+module.exports.gitInstanceFactory = function gitInstanceFactory (baseDir, options) {
+   const config = createInstanceConfig(
+      baseDir && (typeof baseDir === 'string' ? {baseDir} : baseDir),
+      options
+   );
+
+   if (!folderExists(config.baseDir)) {
+      throw new GitConstructError(config, `Cannot use simple-git on a directory that does not exist`);
+   }
+
+   return new Git(config);
+};
+
+
+/***/ }),
+
+/***/ 383:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+/**
+ * Known process exit codes used by the task parsers to determine whether an error
+ * was one they can automatically handle
+ */
+var ExitCodes;
+(function (ExitCodes) {
+    ExitCodes[ExitCodes["SUCCESS"] = 0] = "SUCCESS";
+    ExitCodes[ExitCodes["ERROR"] = 1] = "ERROR";
+    ExitCodes[ExitCodes["UNCLEAN"] = 128] = "UNCLEAN";
+})(ExitCodes = exports.ExitCodes || (exports.ExitCodes = {}));
+//# sourceMappingURL=exit-codes.js.map
+
+/***/ }),
+
 /***/ 386:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -3520,13 +3440,52 @@ module.exports = new Type('tag:yaml.org,2002:js/undefined', {
 
 /***/ }),
 
+/***/ 388:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const utils_1 = __webpack_require__(532);
+const parse_remote_objects_1 = __webpack_require__(448);
+const parsers = [
+    new utils_1.RemoteLineParser(/^remote:\s*(.+)$/, (result, [text]) => {
+        result.remoteMessages.all.push(text.trim());
+        return false;
+    }),
+    ...parse_remote_objects_1.remoteMessagesObjectParsers,
+    new utils_1.RemoteLineParser([/create a (?:pull|merge) request/i, /\s(https?:\/\/\S+)$/], (result, [pullRequestUrl]) => {
+        result.remoteMessages.pullRequestUrl = pullRequestUrl;
+    }),
+    new utils_1.RemoteLineParser([/found (\d+) vulnerabilities.+\(([^)]+)\)/i, /\s(https?:\/\/\S+)$/], (result, [count, summary, url]) => {
+        result.remoteMessages.vulnerabilities = {
+            count: utils_1.asNumber(count),
+            summary,
+            url,
+        };
+    }),
+];
+function parseRemoteMessages(_stdOut, stdErr) {
+    return utils_1.parseStringResponse({ remoteMessages: new RemoteMessageSummary() }, parsers, stdErr);
+}
+exports.parseRemoteMessages = parseRemoteMessages;
+class RemoteMessageSummary {
+    constructor() {
+        this.all = [];
+    }
+}
+exports.RemoteMessageSummary = RemoteMessageSummary;
+//# sourceMappingURL=parse-remote-messages.js.map
+
+/***/ }),
+
 /***/ 402:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const util_1 = __webpack_require__(24);
+const utils_1 = __webpack_require__(532);
 class ConfigList {
     constructor() {
         this.files = [];
@@ -3534,13 +3493,15 @@ class ConfigList {
     }
     get all() {
         if (!this._all) {
-            this._all = Object.assign({}, ...this.files.map(file => this.values[file]));
+            this._all = this.files.reduce((all, file) => {
+                return Object.assign(all, this.values[file]);
+            }, {});
         }
         return this._all;
     }
     addFile(file) {
         if (!(file in this.values)) {
-            const latest = util_1.last(this.files);
+            const latest = utils_1.last(this.files);
             this.values[file] = latest ? Object.create(this.values[latest]) : {};
             this.files.push(file);
         }
@@ -3566,7 +3527,7 @@ function configListParser(text) {
     const lines = text.split('\0');
     for (let i = 0, max = lines.length - 1; i < max;) {
         const file = configFilePath(lines[i++]);
-        const [key, value] = util_1.splitOn(lines[i++], '\n');
+        const [key, value] = utils_1.splitOn(lines[i++], '\n');
         config.addValue(file, key, value);
     }
     return config;
@@ -3576,6 +3537,31 @@ function configFilePath(filePath) {
     return filePath.replace(/^(file):/, '');
 }
 //# sourceMappingURL=ConfigList.js.map
+
+/***/ }),
+
+/***/ 410:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const parse_pull_1 = __webpack_require__(773);
+function pullTask(remote, branch, customArgs) {
+    const commands = ['pull', ...customArgs];
+    if (remote && branch) {
+        commands.splice(1, 0, remote, branch);
+    }
+    return {
+        commands,
+        format: 'utf-8',
+        parser(stdOut, stdErr) {
+            return parse_pull_1.parsePullResult(stdOut, stdErr);
+        }
+    };
+}
+exports.pullTask = pullTask;
+//# sourceMappingURL=pull.js.map
 
 /***/ }),
 
@@ -3723,6 +3709,25 @@ module.exports = new Type('tag:yaml.org,2002:float', {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -3732,17 +3737,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.ruleProducesDiffChange = exports.buildOptions = exports.getDiff = exports.fetchBranches = void 0;
 const core = __importStar(__webpack_require__(470));
 const promise_1 = __importDefault(__webpack_require__(57));
 const helpers_1 = __webpack_require__(441);
@@ -3773,7 +3772,23 @@ function getDiff(baseRef, extraOptions) {
     return __awaiter(this, void 0, void 0, function* () {
         const git = promise_1.default(ROOT_DIR);
         const baseOptions = ['--no-color', `origin/${baseRef}...`];
-        const diff = yield git.diffSummary([...baseOptions, ...extraOptions]);
+        const allOptions = [...baseOptions, ...extraOptions];
+        core.info(`Git diff all options: ${allOptions}`);
+        try {
+            const diff = yield git.diffSummary(allOptions);
+            console.log(`Git diffed files: ${diff.files}`);
+            core.info(`Git diffed files: ${diff.files}`);
+            return diff;
+        }
+        catch (err) {
+            // err.message - the string summary of the error
+            // err.stack - some stack trace detail
+            // err.git - where a parser was able to run, this is the parsed content
+            console.error(`Git diffed files resulted in ${err.message}`);
+            core.error(`Git diffed files resulted in ${err.message}`);
+        }
+        const diff = yield git.diffSummary(allOptions);
+        core.info(`Git diffed files: ${diff.files}`);
         return diff;
     });
 }
@@ -3785,7 +3800,9 @@ exports.getDiff = getDiff;
  */
 function buildOptions(rule) {
     const fullPaths = rule['paths'].map(el => `${ROOT_DIR}/${el}`);
-    return fullPaths.length ? ['--', ...fullPaths] : [];
+    const res = fullPaths.length ? ['--', ...fullPaths] : [];
+    core.info(`buildOptions: ${res}`);
+    return res;
 }
 exports.buildOptions = buildOptions;
 /**
@@ -3798,6 +3815,7 @@ function ruleProducesDiffChange(rule, baseRef) {
     return __awaiter(this, void 0, void 0, function* () {
         const options = buildOptions(rule);
         const diff = yield getDiff(baseRef, options);
+        core.info(`Diff changed: ${diff.changed}`);
         core.info(`Diff options: ${options.join(' ')}`);
         if (diff.changed > 0) {
             const diffedFiles = diff.files.map(elem => elem.file);
@@ -3812,22 +3830,97 @@ exports.ruleProducesDiffChange = ruleProducesDiffChange;
 
 /***/ }),
 
-/***/ 431:
+/***/ 427:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const os = __webpack_require__(87);
+const git_error_1 = __webpack_require__(861);
+/**
+ * The `TaskConfigurationError` is thrown when a command was incorrectly
+ * configured. An error of this kind means that no attempt was made to
+ * run your command through the underlying `git` binary.
+ *
+ * Check the `.message` property for more detail on why your configuration
+ * resulted in an error.
+ */
+class TaskConfigurationError extends git_error_1.GitError {
+    constructor(message) {
+        super(undefined, message);
+    }
+}
+exports.TaskConfigurationError = TaskConfigurationError;
+//# sourceMappingURL=task-configuration-error.js.map
+
+/***/ }),
+
+/***/ 430:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const git_error_1 = __webpack_require__(861);
+/**
+ * The `GitResponseError` is the wrapper for a parsed response that is treated as
+ * a fatal error, for example attempting a `merge` can leave the repo in a corrupted
+ * state when there are conflicts so the task will reject rather than resolve.
+ *
+ * For example, catching the merge conflict exception:
+ *
+ * ```typescript
+ import { gitP, SimpleGit, GitResponseError, MergeSummary } from 'simple-git';
+
+ const git = gitP(repoRoot);
+ const mergeOptions: string[] = ['--no-ff', 'other-branch'];
+ const mergeSummary: MergeSummary = await git.merge(mergeOptions)
+      .catch((e: GitResponseError<MergeSummary>) => e.git);
+
+ if (mergeSummary.failed) {
+   // deal with the error
+ }
+ ```
+ */
+class GitResponseError extends git_error_1.GitError {
+    constructor(
+    /**
+     * `.git` access the parsed response that is treated as being an error
+     */
+    git, message) {
+        super(undefined, message || String(git));
+        this.git = git;
+    }
+}
+exports.GitResponseError = GitResponseError;
+//# sourceMappingURL=git-response-error.js.map
+
+/***/ }),
+
+/***/ 431:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const os = __importStar(__webpack_require__(87));
+const utils_1 = __webpack_require__(82);
 /**
  * Commands
  *
  * Command Format:
- *   ##[name key=value;key=value]message
+ *   ::name key=value,key=value::message
  *
  * Examples:
- *   ##[warning]This is the user warning message
- *   ##[set-secret name=mypassword]definitelyNotAPassword!
+ *   ::warning::This is the message
+ *   ::set-env name=MY_VAR::some value
  */
 function issueCommand(command, properties, message) {
     const cmd = new Command(command, properties, message);
@@ -3852,36 +3945,144 @@ class Command {
         let cmdStr = CMD_STRING + this.command;
         if (this.properties && Object.keys(this.properties).length > 0) {
             cmdStr += ' ';
+            let first = true;
             for (const key in this.properties) {
                 if (this.properties.hasOwnProperty(key)) {
                     const val = this.properties[key];
                     if (val) {
-                        // safely append the val - avoid blowing up when attempting to
-                        // call .replace() if message is not a string for some reason
-                        cmdStr += `${key}=${escape(`${val || ''}`)},`;
+                        if (first) {
+                            first = false;
+                        }
+                        else {
+                            cmdStr += ',';
+                        }
+                        cmdStr += `${key}=${escapeProperty(val)}`;
                     }
                 }
             }
         }
-        cmdStr += CMD_STRING;
-        // safely append the message - avoid blowing up when attempting to
-        // call .replace() if message is not a string for some reason
-        const message = `${this.message || ''}`;
-        cmdStr += escapeData(message);
+        cmdStr += `${CMD_STRING}${escapeData(this.message)}`;
         return cmdStr;
     }
 }
 function escapeData(s) {
-    return s.replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+    return utils_1.toCommandValue(s)
+        .replace(/%/g, '%25')
+        .replace(/\r/g, '%0D')
+        .replace(/\n/g, '%0A');
 }
-function escape(s) {
-    return s
+function escapeProperty(s) {
+    return utils_1.toCommandValue(s)
+        .replace(/%/g, '%25')
         .replace(/\r/g, '%0D')
         .replace(/\n/g, '%0A')
-        .replace(/]/g, '%5D')
-        .replace(/;/g, '%3B');
+        .replace(/:/g, '%3A')
+        .replace(/,/g, '%2C');
 }
 //# sourceMappingURL=command.js.map
+
+/***/ }),
+
+/***/ 435:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createDeferred = exports.deferred = void 0;
+/**
+ * Creates a new `DeferredPromise`
+ *
+ * ```typescript
+ import {deferred} from '@kwsites/promise-deferred`;
+ ```
+ */
+function deferred() {
+    let done;
+    let fail;
+    let status = 'pending';
+    const promise = new Promise((_done, _fail) => {
+        done = _done;
+        fail = _fail;
+    });
+    return {
+        promise,
+        done(result) {
+            if (status === 'pending') {
+                status = 'resolved';
+                done(result);
+            }
+        },
+        fail(error) {
+            if (status === 'pending') {
+                status = 'rejected';
+                fail(error);
+            }
+        },
+        get fulfilled() {
+            return status !== 'pending';
+        },
+        get status() {
+            return status;
+        },
+    };
+}
+exports.deferred = deferred;
+/**
+ * Alias of the exported `deferred` function, to help consumers wanting to use `deferred` as the
+ * local variable name rather than the factory import name, without needing to rename on import.
+ *
+ * ```typescript
+ import {createDeferred} from '@kwsites/promise-deferred`;
+ ```
+ */
+exports.createDeferred = deferred;
+/**
+ * Default export allows use as:
+ *
+ * ```typescript
+ import deferred from '@kwsites/promise-deferred`;
+ ```
+ */
+exports.default = deferred;
+//# sourceMappingURL=index.js.map
+
+/***/ }),
+
+/***/ 436:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+class BranchDeletionBatch {
+    constructor() {
+        this.all = [];
+        this.branches = {};
+        this.errors = [];
+    }
+    get success() {
+        return !this.errors.length;
+    }
+}
+exports.BranchDeletionBatch = BranchDeletionBatch;
+function branchDeletionSuccess(branch, hash) {
+    return {
+        branch, hash, success: true,
+    };
+}
+exports.branchDeletionSuccess = branchDeletionSuccess;
+function branchDeletionFailure(branch) {
+    return {
+        branch, hash: null, success: false,
+    };
+}
+exports.branchDeletionFailure = branchDeletionFailure;
+function isSingleBranchDeleteFailure(test) {
+    return test.success;
+}
+exports.isSingleBranchDeleteFailure = isSingleBranchDeleteFailure;
+//# sourceMappingURL=BranchDeleteSummary.js.map
 
 /***/ }),
 
@@ -3903,6 +4104,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getYamlRules = exports.getRootDir = void 0;
 const fs_1 = __importDefault(__webpack_require__(747));
 const js_yaml_1 = __importDefault(__webpack_require__(414));
 /**
@@ -3928,7 +4130,7 @@ function getYamlRules(rulesPath) {
         rulesPath = `${getRootDir()}/${rulesPath}`;
         const file = fs_1.default.readFileSync(rulesPath, 'utf8');
         const parsedYaml = js_yaml_1.default.safeLoad(file);
-        return parsedYaml['rules'];
+        return parsedYaml === null || parsedYaml === void 0 ? void 0 : parsedYaml['rules'];
     });
 }
 exports.getYamlRules = getYamlRules;
@@ -3991,6 +4193,7 @@ exports.StatusSummaryParsers = {
         const behindReg = /behind (\d+)/;
         const currentReg = /^(.+?(?=(?:\.{3}|\s|$)))/;
         const trackingReg = /\.{3}(\S*)/;
+        const onEmptyBranchReg = /\son\s([\S]+)$/;
         let regexResult;
         regexResult = aheadReg.exec(line);
         status.ahead = regexResult && +regexResult[1] || 0;
@@ -4000,6 +4203,8 @@ exports.StatusSummaryParsers = {
         status.current = regexResult && regexResult[1];
         regexResult = trackingReg.exec(line);
         status.tracking = regexResult && regexResult[1];
+        regexResult = onEmptyBranchReg.exec(line);
+        status.current = regexResult && regexResult[1] || status.current;
     },
     '??': function (line, status) {
         status.not_added.push(line);
@@ -4081,6 +4286,101 @@ function splitLine(lineStr) {
     };
 }
 //# sourceMappingURL=StatusSummary.js.map
+
+/***/ }),
+
+/***/ 448:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const utils_1 = __webpack_require__(532);
+function objectEnumerationResult(remoteMessages) {
+    return (remoteMessages.objects = remoteMessages.objects || {
+        compressing: 0,
+        counting: 0,
+        enumerating: 0,
+        packReused: 0,
+        reused: { count: 0, delta: 0 },
+        total: { count: 0, delta: 0 }
+    });
+}
+function asObjectCount(source) {
+    const count = /^\s*(\d+)/.exec(source);
+    const delta = /delta (\d+)/i.exec(source);
+    return {
+        count: utils_1.asNumber(count && count[1] || '0'),
+        delta: utils_1.asNumber(delta && delta[1] || '0'),
+    };
+}
+exports.remoteMessagesObjectParsers = [
+    new utils_1.RemoteLineParser(/^remote:\s*(enumerating|counting|compressing) objects: (\d+),/i, (result, [action, count]) => {
+        const key = action.toLowerCase();
+        const enumeration = objectEnumerationResult(result.remoteMessages);
+        Object.assign(enumeration, { [key]: utils_1.asNumber(count) });
+    }),
+    new utils_1.RemoteLineParser(/^remote:\s*(enumerating|counting|compressing) objects: \d+% \(\d+\/(\d+)\),/i, (result, [action, count]) => {
+        const key = action.toLowerCase();
+        const enumeration = objectEnumerationResult(result.remoteMessages);
+        Object.assign(enumeration, { [key]: utils_1.asNumber(count) });
+    }),
+    new utils_1.RemoteLineParser(/total ([^,]+), reused ([^,]+), pack-reused (\d+)/i, (result, [total, reused, packReused]) => {
+        const objects = objectEnumerationResult(result.remoteMessages);
+        objects.total = asObjectCount(total);
+        objects.reused = asObjectCount(reused);
+        objects.packReused = utils_1.asNumber(packReused);
+    }),
+];
+//# sourceMappingURL=parse-remote-objects.js.map
+
+/***/ }),
+
+/***/ 453:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const task_1 = __webpack_require__(614);
+const GetRemoteSummary_1 = __webpack_require__(294);
+function addRemoteTask(remoteName, remoteRepo, customArgs = []) {
+    return task_1.straightThroughStringTask(['remote', 'add', ...customArgs, remoteName, remoteRepo]);
+}
+exports.addRemoteTask = addRemoteTask;
+function getRemotesTask(verbose) {
+    const commands = ['remote'];
+    if (verbose) {
+        commands.push('-v');
+    }
+    return {
+        commands,
+        format: 'utf-8',
+        parser: verbose ? GetRemoteSummary_1.parseGetRemotesVerbose : GetRemoteSummary_1.parseGetRemotes,
+    };
+}
+exports.getRemotesTask = getRemotesTask;
+function listRemotesTask(customArgs = []) {
+    const commands = [...customArgs];
+    if (commands[0] !== 'ls-remote') {
+        commands.unshift('ls-remote');
+    }
+    return task_1.straightThroughStringTask(commands);
+}
+exports.listRemotesTask = listRemotesTask;
+function remoteTask(customArgs = []) {
+    const commands = [...customArgs];
+    if (commands[0] !== 'remote') {
+        commands.unshift('remote');
+    }
+    return task_1.straightThroughStringTask(commands);
+}
+exports.remoteTask = remoteTask;
+function removeRemoteTask(remoteName) {
+    return task_1.straightThroughStringTask(['remote', 'remove', remoteName]);
+}
+exports.removeRemoteTask = removeRemoteTask;
+//# sourceMappingURL=remote.js.map
 
 /***/ }),
 
@@ -5483,12 +5783,18 @@ function composeNode(state, parentIndent, nodeContext, allowToSeek, allowCompact
 
   if (state.tag !== null && state.tag !== '!') {
     if (state.tag === '?') {
+      // Implicit resolving is not allowed for non-scalar types, and '?'
+      // non-specific tag is only automatically assigned to plain scalars.
+      //
+      // We only need to check kind conformity in case user explicitly assigns '?'
+      // tag, for example like this: "!<?> [0]"
+      //
+      if (state.result !== null && state.kind !== 'scalar') {
+        throwError(state, 'unacceptable node kind for !<?> tag; it should be "scalar", not "' + state.kind + '"');
+      }
+
       for (typeIndex = 0, typeQuantity = state.implicitTypes.length; typeIndex < typeQuantity; typeIndex += 1) {
         type = state.implicitTypes[typeIndex];
-
-        // Implicit resolving is not allowed for non-scalar types, and '?'
-        // non-specific tag is only assigned to plain scalars. So, it isn't
-        // needed to check for 'kind' conformity.
 
         if (type.resolve(state.result)) { // `state.result` updated in resolver if matched
           state.result = type.construct(state.result);
@@ -5653,6 +5959,13 @@ function loadDocuments(input, options) {
 
   var state = new State(input, options);
 
+  var nullpos = input.indexOf('\0');
+
+  if (nullpos !== -1) {
+    state.position = nullpos;
+    throwError(state, 'null byte is not allowed in input');
+  }
+
   // Use 0 as string terminator. That significantly simplifies bounds check.
   state.input += '\0';
 
@@ -5670,13 +5983,18 @@ function loadDocuments(input, options) {
 
 
 function loadAll(input, iterator, options) {
-  var documents = loadDocuments(input, options), index, length;
+  if (iterator !== null && typeof iterator === 'object' && typeof options === 'undefined') {
+    options = iterator;
+    iterator = null;
+  }
+
+  var documents = loadDocuments(input, options);
 
   if (typeof iterator !== 'function') {
     return documents;
   }
 
-  for (index = 0, length = documents.length; index < length; index += 1) {
+  for (var index = 0, length = documents.length; index < length; index += 1) {
     iterator(documents[index]);
   }
 }
@@ -5695,12 +6013,13 @@ function load(input, options) {
 }
 
 
-function safeLoadAll(input, output, options) {
-  if (typeof output === 'function') {
-    loadAll(input, output, common.extend({ schema: DEFAULT_SAFE_SCHEMA }, options));
-  } else {
-    return loadAll(input, common.extend({ schema: DEFAULT_SAFE_SCHEMA }, options));
+function safeLoadAll(input, iterator, options) {
+  if (typeof iterator === 'object' && iterator !== null && typeof options === 'undefined') {
+    options = iterator;
+    iterator = null;
   }
+
+  return loadAll(input, iterator, common.extend({ schema: DEFAULT_SAFE_SCHEMA }, options));
 }
 
 
@@ -5717,42 +6036,47 @@ module.exports.safeLoad    = safeLoad;
 
 /***/ }),
 
-/***/ 466:
-/***/ (function(module) {
+/***/ 462:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
+"use strict";
 
-module.exports = MoveSummary;
-
-/**
- * The MoveSummary is returned as a response to getting `git().status()`
- *
- * @constructor
- */
-function MoveSummary () {
-   this.moves = [];
-   this.sources = {};
+Object.defineProperty(exports, "__esModule", { value: true });
+const task_1 = __webpack_require__(614);
+var ResetMode;
+(function (ResetMode) {
+    ResetMode["MIXED"] = "mixed";
+    ResetMode["SOFT"] = "soft";
+    ResetMode["HARD"] = "hard";
+    ResetMode["MERGE"] = "merge";
+    ResetMode["KEEP"] = "keep";
+})(ResetMode = exports.ResetMode || (exports.ResetMode = {}));
+const ResetModes = Array.from(Object.values(ResetMode));
+function resetTask(mode, customArgs) {
+    const commands = ['reset'];
+    if (isValidResetMode(mode)) {
+        commands.push(`--${mode}`);
+    }
+    commands.push(...customArgs);
+    return task_1.straightThroughStringTask(commands);
 }
-
-MoveSummary.SUMMARY_REGEX = /^Renaming (.+) to (.+)$/;
-
-MoveSummary.parse = function (text) {
-   var lines = text.split('\n');
-   var summary = new MoveSummary();
-
-   for (var i = 0, iMax = lines.length, line; i < iMax; i++) {
-      line = MoveSummary.SUMMARY_REGEX.exec(lines[i].trim());
-
-      if (line) {
-         summary.moves.push({
-            from: line[1],
-            to: line[2]
-         });
-      }
-   }
-
-   return summary;
-};
-
+exports.resetTask = resetTask;
+function getResetMode(mode) {
+    if (isValidResetMode(mode)) {
+        return mode;
+    }
+    switch (typeof mode) {
+        case 'string':
+        case 'undefined':
+            return ResetMode.SOFT;
+    }
+    return;
+}
+exports.getResetMode = getResetMode;
+function isValidResetMode(mode) {
+    return ResetModes.includes(mode);
+}
+//# sourceMappingURL=reset.js.map
 
 /***/ }),
 
@@ -5770,10 +6094,19 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const command_1 = __webpack_require__(431);
-const os = __webpack_require__(87);
-const path = __webpack_require__(622);
+const file_command_1 = __webpack_require__(102);
+const utils_1 = __webpack_require__(82);
+const os = __importStar(__webpack_require__(87));
+const path = __importStar(__webpack_require__(622));
 /**
  * The code to exit an action
  */
@@ -5794,11 +6127,21 @@ var ExitCode;
 /**
  * Sets env variable for this action and future actions in the job
  * @param name the name of the variable to set
- * @param val the value of the variable
+ * @param val the value of the variable. Non-string values will be converted to a string via JSON.stringify
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function exportVariable(name, val) {
-    process.env[name] = val;
-    command_1.issueCommand('set-env', { name }, val);
+    const convertedVal = utils_1.toCommandValue(val);
+    process.env[name] = convertedVal;
+    const filePath = process.env['GITHUB_ENV'] || '';
+    if (filePath) {
+        const delimiter = '_GitHubActionsFileCommandDelimeter_';
+        const commandValue = `${name}<<${delimiter}${os.EOL}${convertedVal}${os.EOL}${delimiter}`;
+        file_command_1.issueCommand('ENV', commandValue);
+    }
+    else {
+        command_1.issueCommand('set-env', { name }, convertedVal);
+    }
 }
 exports.exportVariable = exportVariable;
 /**
@@ -5814,7 +6157,13 @@ exports.setSecret = setSecret;
  * @param inputPath
  */
 function addPath(inputPath) {
-    command_1.issueCommand('add-path', {}, inputPath);
+    const filePath = process.env['GITHUB_PATH'] || '';
+    if (filePath) {
+        file_command_1.issueCommand('PATH', inputPath);
+    }
+    else {
+        command_1.issueCommand('add-path', {}, inputPath);
+    }
     process.env['PATH'] = `${inputPath}${path.delimiter}${process.env['PATH']}`;
 }
 exports.addPath = addPath;
@@ -5837,12 +6186,22 @@ exports.getInput = getInput;
  * Sets the value of an output.
  *
  * @param     name     name of the output to set
- * @param     value    value to store
+ * @param     value    value to store. Non-string values will be converted to a string via JSON.stringify
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function setOutput(name, value) {
     command_1.issueCommand('set-output', { name }, value);
 }
 exports.setOutput = setOutput;
+/**
+ * Enables or disables the echoing of commands into stdout for the rest of the step.
+ * Echoing is disabled by default if ACTIONS_STEP_DEBUG is not set.
+ *
+ */
+function setCommandEcho(enabled) {
+    command_1.issue('echo', enabled ? 'on' : 'off');
+}
+exports.setCommandEcho = setCommandEcho;
 //-----------------------------------------------------------------------
 // Results
 //-----------------------------------------------------------------------
@@ -5860,6 +6219,13 @@ exports.setFailed = setFailed;
 // Logging Commands
 //-----------------------------------------------------------------------
 /**
+ * Gets whether Actions Step Debug is on or not
+ */
+function isDebug() {
+    return process.env['RUNNER_DEBUG'] === '1';
+}
+exports.isDebug = isDebug;
+/**
  * Writes debug message to user log
  * @param message debug message
  */
@@ -5869,18 +6235,18 @@ function debug(message) {
 exports.debug = debug;
 /**
  * Adds an error issue
- * @param message error issue message
+ * @param message error issue message. Errors will be converted to string via toString()
  */
 function error(message) {
-    command_1.issue('error', message);
+    command_1.issue('error', message instanceof Error ? message.toString() : message);
 }
 exports.error = error;
 /**
  * Adds an warning issue
- * @param message warning issue message
+ * @param message warning issue message. Errors will be converted to string via toString()
  */
 function warning(message) {
-    command_1.issue('warning', message);
+    command_1.issue('warning', message instanceof Error ? message.toString() : message);
 }
 exports.warning = warning;
 /**
@@ -5938,8 +6304,9 @@ exports.group = group;
  * Saves state for current action, the state can only be retrieved by this action's post job execution.
  *
  * @param     name     name of the state to store
- * @param     value    value to store
+ * @param     value    value to store. Non-string values will be converted to a string via JSON.stringify
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function saveState(name, value) {
     command_1.issueCommand('save-state', { name }, value);
 }
@@ -6232,51 +6599,95 @@ module.exports = setup;
 /***/ }),
 
 /***/ 495:
-/***/ (function(__unusedmodule, exports) {
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-class BranchDeletionBatch {
-    constructor() {
-        this.all = [];
-        this.branches = {};
-        this.errors = [];
+const util_1 = __webpack_require__(778);
+function filterType(input, filter, def) {
+    if (filter(input)) {
+        return input;
     }
-    get success() {
-        return !this.errors.length;
-    }
+    return (arguments.length > 2) ? def : undefined;
 }
-exports.BranchDeletionBatch = BranchDeletionBatch;
-class BranchDeletion {
-    constructor(branch, hash) {
-        this.branch = branch;
-        this.hash = hash;
-        this.success = hash !== null;
-    }
-}
-exports.BranchDeletion = BranchDeletion;
-exports.deleteSuccessRegex = /(\S+)\s+\(\S+\s([^)]+)\)/;
-exports.deleteErrorRegex = /^error[^']+'([^']+)'/;
-exports.parseBranchDeletions = function (data) {
-    const batch = new BranchDeletionBatch();
-    data.trim().split('\n').forEach((line) => {
-        const deletion = toBranchDeletion(line);
-        if (!deletion) {
-            return;
-        }
-        batch.all.push(batch.branches[deletion.branch] = deletion);
-        if (!deletion.success) {
-            batch.errors.push(deletion);
-        }
-    });
-    return batch;
+exports.filterType = filterType;
+exports.filterArray = (input) => {
+    return Array.isArray(input);
 };
-function toBranchDeletion(line) {
-    const result = exports.deleteSuccessRegex.exec(line) || exports.deleteErrorRegex.exec(line);
-    return result && new BranchDeletion(result[1], result.length > 1 && result[2] || null);
+function filterPrimitives(input, omit) {
+    return /number|string|boolean/.test(typeof input) && (!omit || !omit.includes((typeof input)));
 }
-//# sourceMappingURL=BranchDeleteSummary.js.map
+exports.filterPrimitives = filterPrimitives;
+exports.filterString = (input) => {
+    return typeof input === 'string';
+};
+function filterPlainObject(input) {
+    return !!input && util_1.objectToString(input) === '[object Object]';
+}
+exports.filterPlainObject = filterPlainObject;
+function filterFunction(input) {
+    return typeof input === 'function';
+}
+exports.filterFunction = filterFunction;
+exports.filterHasLength = (input) => {
+    if (input == null || 'number|boolean|function'.includes(typeof input)) {
+        return false;
+    }
+    return Array.isArray(input) || typeof input === 'string' || typeof input.length === 'number';
+};
+//# sourceMappingURL=argument-filters.js.map
+
+/***/ }),
+
+/***/ 508:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const api_1 = __webpack_require__(752);
+const parse_merge_1 = __webpack_require__(266);
+const task_1 = __webpack_require__(614);
+function mergeTask(customArgs) {
+    if (!customArgs.length) {
+        return task_1.configurationErrorTask('Git.merge requires at least one option');
+    }
+    return {
+        commands: ['merge', ...customArgs],
+        format: 'utf-8',
+        parser(stdOut, stdErr) {
+            const merge = parse_merge_1.parseMergeResult(stdOut, stdErr);
+            if (merge.failed) {
+                throw new api_1.GitResponseError(merge);
+            }
+            return merge;
+        }
+    };
+}
+exports.mergeTask = mergeTask;
+//# sourceMappingURL=merge.js.map
+
+/***/ }),
+
+/***/ 532:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+function __export(m) {
+    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
+}
+Object.defineProperty(exports, "__esModule", { value: true });
+__export(__webpack_require__(495));
+__export(__webpack_require__(383));
+__export(__webpack_require__(323));
+__export(__webpack_require__(789));
+__export(__webpack_require__(954));
+__export(__webpack_require__(540));
+__export(__webpack_require__(544));
+__export(__webpack_require__(778));
+//# sourceMappingURL=index.js.map
 
 /***/ }),
 
@@ -6344,6 +6755,98 @@ CommitSummary.parse = function (commit) {
    return commitSummary;
 };
 
+
+/***/ }),
+
+/***/ 540:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const argument_filters_1 = __webpack_require__(495);
+const util_1 = __webpack_require__(778);
+function appendTaskOptions(options, commands = []) {
+    if (!argument_filters_1.filterPlainObject(options)) {
+        return commands;
+    }
+    return Object.keys(options).reduce((commands, key) => {
+        const value = options[key];
+        if (argument_filters_1.filterPrimitives(value, ['boolean'])) {
+            commands.push(key + '=' + value);
+        }
+        else {
+            commands.push(key);
+        }
+        return commands;
+    }, commands);
+}
+exports.appendTaskOptions = appendTaskOptions;
+function getTrailingOptions(args, initialPrimitive = 0, objectOnly = false) {
+    const command = [];
+    for (let i = 0, max = initialPrimitive < 0 ? args.length : initialPrimitive; i < max; i++) {
+        if ('string|number'.includes(typeof args[i])) {
+            command.push(String(args[i]));
+        }
+    }
+    appendTaskOptions(trailingOptionsArgument(args), command);
+    if (!objectOnly) {
+        command.push(...trailingArrayArgument(args));
+    }
+    return command;
+}
+exports.getTrailingOptions = getTrailingOptions;
+function trailingArrayArgument(args) {
+    const hasTrailingCallback = typeof util_1.last(args) === 'function';
+    return argument_filters_1.filterType(util_1.last(args, hasTrailingCallback ? 1 : 0), argument_filters_1.filterArray, []);
+}
+/**
+ * Given any number of arguments, returns the trailing options argument, ignoring a trailing function argument
+ * if there is one. When not found, the return value is null.
+ */
+function trailingOptionsArgument(args) {
+    const hasTrailingCallback = argument_filters_1.filterFunction(util_1.last(args));
+    return argument_filters_1.filterType(util_1.last(args, hasTrailingCallback ? 1 : 0), argument_filters_1.filterPlainObject);
+}
+exports.trailingOptionsArgument = trailingOptionsArgument;
+/**
+ * Returns either the source argument when it is a `Function`, or the default
+ * `NOOP` function constant
+ */
+function trailingFunctionArgument(args, includeNoop = true) {
+    const callback = util_1.asFunction(util_1.last(args));
+    return includeNoop || util_1.isUserFunction(callback) ? callback : undefined;
+}
+exports.trailingFunctionArgument = trailingFunctionArgument;
+//# sourceMappingURL=task-options.js.map
+
+/***/ }),
+
+/***/ 544:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const util_1 = __webpack_require__(778);
+function callTaskParser(parser, streams) {
+    return parser(streams.stdOut, streams.stdErr);
+}
+exports.callTaskParser = callTaskParser;
+function parseStringResponse(result, parsers, text) {
+    for (let lines = util_1.toLinesWithContent(text), i = 0, max = lines.length; i < max; i++) {
+        const line = (offset = 0) => {
+            if ((i + offset) >= max) {
+                return;
+            }
+            return lines[i + offset];
+        };
+        parsers.some(({ parse }) => parse(line, result));
+    }
+    return result;
+}
+exports.parseStringResponse = parseStringResponse;
+//# sourceMappingURL=task-parser.js.map
 
 /***/ }),
 
@@ -6439,6 +6942,37 @@ module.exports = new Schema({
 
 /***/ }),
 
+/***/ 587:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const task_1 = __webpack_require__(614);
+function addSubModuleTask(repo, path) {
+    return subModuleTask(['add', repo, path]);
+}
+exports.addSubModuleTask = addSubModuleTask;
+function initSubModuleTask(customArgs) {
+    return subModuleTask(['init', ...customArgs]);
+}
+exports.initSubModuleTask = initSubModuleTask;
+function subModuleTask(customArgs) {
+    const commands = [...customArgs];
+    if (commands[0] !== 'submodule') {
+        commands.unshift('submodule');
+    }
+    return task_1.straightThroughStringTask(commands);
+}
+exports.subModuleTask = subModuleTask;
+function updateSubModuleTask(customArgs) {
+    return subModuleTask(['update', ...customArgs]);
+}
+exports.updateSubModuleTask = updateSubModuleTask;
+//# sourceMappingURL=sub-module.js.map
+
+/***/ }),
+
 /***/ 611:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -6466,11 +7000,41 @@ module.exports = new Schema({
 /***/ }),
 
 /***/ 614:
-/***/ (function(__unusedmodule, exports) {
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
+const task_configuration_error_1 = __webpack_require__(427);
+exports.EMPTY_COMMANDS = [];
+function adhocExecTask(parser) {
+    return {
+        commands: exports.EMPTY_COMMANDS,
+        format: 'utf-8',
+        parser,
+    };
+}
+exports.adhocExecTask = adhocExecTask;
+function configurationErrorTask(error) {
+    return {
+        commands: exports.EMPTY_COMMANDS,
+        format: 'utf-8',
+        parser() {
+            throw typeof error === 'string' ? new task_configuration_error_1.TaskConfigurationError(error) : error;
+        }
+    };
+}
+exports.configurationErrorTask = configurationErrorTask;
+function straightThroughStringTask(commands, trimmed = false) {
+    return {
+        commands,
+        format: 'utf-8',
+        parser(text) {
+            return trimmed ? String(text).trim() : text;
+        },
+    };
+}
+exports.straightThroughStringTask = straightThroughStringTask;
 function isBufferTask(task) {
     return task.format === 'buffer';
 }
@@ -6578,113 +7142,44 @@ module.exports = new Type('tag:yaml.org,2002:merge', {
 
 /***/ }),
 
-/***/ 656:
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ 637:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
-module.exports = MergeSummary;
-module.exports.MergeConflict = MergeConflict;
+"use strict";
 
-var PullSummary = __webpack_require__(39);
-
-function MergeConflict (reason, file, meta) {
-   this.reason = reason;
-   this.file = file;
-   if (meta) {
-      this.meta = meta;
-   }
+function __export(m) {
+    for (var p in m) if (!exports.hasOwnProperty(p)) exports[p] = m[p];
 }
+Object.defineProperty(exports, "__esModule", { value: true });
+__export(__webpack_require__(833));
+//# sourceMappingURL=index.js.map
 
-MergeConflict.prototype.meta = null;
+/***/ }),
 
-MergeConflict.prototype.toString = function () {
-   return this.file + ':' + this.reason;
-};
+/***/ 645:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
-function MergeSummary () {
-   PullSummary.call(this);
+"use strict";
 
-   this.conflicts = [];
-   this.merges = [];
+Object.defineProperty(exports, "__esModule", { value: true });
+const git_error_1 = __webpack_require__(861);
+/**
+ * The `GitConstructError` is thrown when an error occurs in the constructor
+ * of the `simple-git` instance itself. Most commonly as a result of using
+ * a `baseDir` option that points to a folder that either does not exist,
+ * or cannot be read by the user the node script is running as.
+ *
+ * Check the `.message` property for more detail including the properties
+ * passed to the constructor.
+ */
+class GitConstructError extends git_error_1.GitError {
+    constructor(config, message) {
+        super(undefined, message);
+        this.config = config;
+    }
 }
-
-MergeSummary.prototype = Object.create(PullSummary.prototype);
-
-MergeSummary.prototype.result = 'success';
-
-MergeSummary.prototype.toString = function () {
-   if (this.conflicts.length) {
-      return 'CONFLICTS: ' + this.conflicts.join(', ');
-   }
-   return 'OK';
-};
-
-Object.defineProperty(MergeSummary.prototype, 'failed', {
-   get: function () {
-      return this.conflicts.length > 0;
-   }
-});
-
-MergeSummary.parsers = [
-   {
-      test: /^Auto-merging\s+(.+)$/,
-      handle: function (result, mergeSummary) {
-         mergeSummary.merges.push(result[1]);
-      }
-   },
-   {
-      // Parser for standard merge conflicts
-      test: /^CONFLICT\s+\((.+)\): Merge conflict in (.+)$/,
-      handle: function (result, mergeSummary) {
-         mergeSummary.conflicts.push(new MergeConflict(result[1], result[2]));
-      }
-   },
-   {
-      // Parser for modify/delete merge conflicts (modified by us/them, deleted by them/us)
-      test: /^CONFLICT\s+\((.+\/delete)\): (.+) deleted in (.+) and/,
-      handle: function (result, mergeSummary) {
-         mergeSummary.conflicts.push(
-            new MergeConflict(result[1], result[2], {deleteRef: result[3]})
-         );
-      }
-   },
-   {
-      // Catch-all parser for unknown/unparsed conflicts
-      test: /^CONFLICT\s+\((.+)\):/,
-      handle: function (result, mergeSummary) {
-         mergeSummary.conflicts.push(new MergeConflict(result[1], null));
-      }
-   },
-   {
-      test: /^Automatic merge failed;\s+(.+)$/,
-      handle: function (result, mergeSummary) {
-         mergeSummary.reason = mergeSummary.result = result[1];
-      }
-   }
-];
-
-MergeSummary.parse = function (output) {
-   let mergeSummary = new MergeSummary();
-
-   output.trim().split('\n').forEach(function (line) {
-      for (var i = 0, iMax = MergeSummary.parsers.length; i < iMax; i++) {
-         let parser = MergeSummary.parsers[i];
-
-         var result = parser.test.exec(line);
-         if (result) {
-            parser.handle(result, mergeSummary);
-            break;
-         }
-      }
-   });
-
-   let pullSummary = PullSummary.parse(output);
-   if (pullSummary.summary.changes) {
-      Object.assign(mergeSummary, pullSummary);
-   }
-
-   return mergeSummary;
-};
-
+exports.GitConstructError = GitConstructError;
+//# sourceMappingURL=git-construct-error.js.map
 
 /***/ }),
 
@@ -6810,24 +7305,6 @@ class BranchSummaryResult {
     }
 }
 exports.BranchSummaryResult = BranchSummaryResult;
-exports.detachedRegex = /^(\*?\s+)\((?:HEAD )?detached (?:from|at) (\S+)\)\s+([a-z0-9]+)\s(.*)$/;
-exports.branchRegex = /^(\*?\s+)(\S+)\s+([a-z0-9]+)\s(.*)$/;
-exports.parseBranchSummary = function (commit) {
-    const branchSummary = new BranchSummaryResult();
-    commit.split('\n')
-        .forEach(function (line) {
-        let detached = true;
-        let branch = exports.detachedRegex.exec(line);
-        if (!branch) {
-            detached = false;
-            branch = exports.branchRegex.exec(line);
-        }
-        if (branch) {
-            branchSummary.push(branch[1].charAt(0) === '*', detached, branch[2], branch[3], branch[4]);
-        }
-    });
-    return branchSummary;
-};
 //# sourceMappingURL=BranchSummary.js.map
 
 /***/ }),
@@ -6850,6 +7327,7 @@ var _hasOwnProperty = Object.prototype.hasOwnProperty;
 
 var CHAR_TAB                  = 0x09; /* Tab */
 var CHAR_LINE_FEED            = 0x0A; /* LF */
+var CHAR_CARRIAGE_RETURN      = 0x0D; /* CR */
 var CHAR_SPACE                = 0x20; /* Space */
 var CHAR_EXCLAMATION          = 0x21; /* ! */
 var CHAR_DOUBLE_QUOTE         = 0x22; /* " */
@@ -6861,6 +7339,7 @@ var CHAR_ASTERISK             = 0x2A; /* * */
 var CHAR_COMMA                = 0x2C; /* , */
 var CHAR_MINUS                = 0x2D; /* - */
 var CHAR_COLON                = 0x3A; /* : */
+var CHAR_EQUALS               = 0x3D; /* = */
 var CHAR_GREATER_THAN         = 0x3E; /* > */
 var CHAR_QUESTION             = 0x3F; /* ? */
 var CHAR_COMMERCIAL_AT        = 0x40; /* @ */
@@ -7026,8 +7505,23 @@ function isPrintable(c) {
       ||  (0x10000 <= c && c <= 0x10FFFF);
 }
 
+// [34] ns-char ::= nb-char - s-white
+// [27] nb-char ::= c-printable - b-char - c-byte-order-mark
+// [26] b-char  ::= b-line-feed | b-carriage-return
+// [24] b-line-feed       ::=     #xA    /* LF */
+// [25] b-carriage-return ::=     #xD    /* CR */
+// [3]  c-byte-order-mark ::=     #xFEFF
+function isNsChar(c) {
+  return isPrintable(c) && !isWhitespace(c)
+    // byte-order-mark
+    && c !== 0xFEFF
+    // b-char
+    && c !== CHAR_CARRIAGE_RETURN
+    && c !== CHAR_LINE_FEED;
+}
+
 // Simplified test for values allowed after the first character in plain style.
-function isPlainSafe(c) {
+function isPlainSafe(c, prev) {
   // Uses a subset of nb-char - c-flow-indicator - ":" - "#"
   // where nb-char ::= c-printable - b-char - c-byte-order-mark.
   return isPrintable(c) && c !== 0xFEFF
@@ -7038,8 +7532,9 @@ function isPlainSafe(c) {
     && c !== CHAR_LEFT_CURLY_BRACKET
     && c !== CHAR_RIGHT_CURLY_BRACKET
     // - ":" - "#"
+    // /* An ns-char preceding */ "#"
     && c !== CHAR_COLON
-    && c !== CHAR_SHARP;
+    && ((c !== CHAR_SHARP) || (prev && isNsChar(prev)));
 }
 
 // Simplified test for values allowed as the first character in plain style.
@@ -7058,12 +7553,13 @@ function isPlainSafeFirst(c) {
     && c !== CHAR_RIGHT_SQUARE_BRACKET
     && c !== CHAR_LEFT_CURLY_BRACKET
     && c !== CHAR_RIGHT_CURLY_BRACKET
-    // | “#” | “&” | “*” | “!” | “|” | “>” | “'” | “"”
+    // | “#” | “&” | “*” | “!” | “|” | “=” | “>” | “'” | “"”
     && c !== CHAR_SHARP
     && c !== CHAR_AMPERSAND
     && c !== CHAR_ASTERISK
     && c !== CHAR_EXCLAMATION
     && c !== CHAR_VERTICAL_LINE
+    && c !== CHAR_EQUALS
     && c !== CHAR_GREATER_THAN
     && c !== CHAR_SINGLE_QUOTE
     && c !== CHAR_DOUBLE_QUOTE
@@ -7094,7 +7590,7 @@ var STYLE_PLAIN   = 1,
 //    STYLE_FOLDED => a line > lineWidth and can be folded (and lineWidth != -1).
 function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, testAmbiguousType) {
   var i;
-  var char;
+  var char, prev_char;
   var hasLineBreak = false;
   var hasFoldableLine = false; // only checked if shouldTrackWidth
   var shouldTrackWidth = lineWidth !== -1;
@@ -7110,7 +7606,8 @@ function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, te
       if (!isPrintable(char)) {
         return STYLE_DOUBLE;
       }
-      plain = plain && isPlainSafe(char);
+      prev_char = i > 0 ? string.charCodeAt(i - 1) : null;
+      plain = plain && isPlainSafe(char, prev_char);
     }
   } else {
     // Case: block styles permitted.
@@ -7129,7 +7626,8 @@ function chooseScalarStyle(string, singleLineOnly, indentPerLevel, lineWidth, te
       } else if (!isPrintable(char)) {
         return STYLE_DOUBLE;
       }
-      plain = plain && isPlainSafe(char);
+      prev_char = i > 0 ? string.charCodeAt(i - 1) : null;
+      plain = plain && isPlainSafe(char, prev_char);
     }
     // in case the end is missing a \n
     hasFoldableLine = hasFoldableLine || (shouldTrackWidth &&
@@ -7386,9 +7884,11 @@ function writeFlowMapping(state, level, object) {
       pairBuffer;
 
   for (index = 0, length = objectKeyList.length; index < length; index += 1) {
-    pairBuffer = state.condenseFlow ? '"' : '';
 
+    pairBuffer = '';
     if (index !== 0) pairBuffer += ', ';
+
+    if (state.condenseFlow) pairBuffer += '"';
 
     objectKey = objectKeyList[index];
     objectValue = object[objectKey];
@@ -7674,10 +8174,10 @@ module.exports.safeDump = safeDump;
 
 Object.defineProperty(exports, "__esModule", { value: true });
 const StatusSummary_1 = __webpack_require__(442);
-function statusTask() {
+function statusTask(customArgs) {
     return {
         format: 'utf-8',
-        commands: ['status', '--porcelain', '-b', '-u'],
+        commands: ['status', '--porcelain', '-b', '-u', ...customArgs],
         parser(text) {
             return StatusSummary_1.parseStatusSummary(text);
         }
@@ -7710,7 +8210,7 @@ module.exports = new Schema({
     __webpack_require__(611)
   ],
   implicit: [
-    __webpack_require__(82),
+    __webpack_require__(841),
     __webpack_require__(633)
   ],
   explicit: [
@@ -7730,8 +8230,9 @@ module.exports = new Schema({
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-const BranchSummary_1 = __webpack_require__(672);
-const BranchDeleteSummary_1 = __webpack_require__(495);
+const git_response_error_1 = __webpack_require__(430);
+const parse_branch_delete_1 = __webpack_require__(738);
+const parse_branch_1 = __webpack_require__(147);
 function containsDeleteBranchCommand(commands) {
     const deleteCommands = ['-d', '-D', '--delete'];
     return commands.some(command => deleteCommands.includes(command));
@@ -7749,8 +8250,11 @@ function branchTask(customArgs) {
     return {
         format: 'utf-8',
         commands,
-        parser(text) {
-            return isDelete ? BranchDeleteSummary_1.parseBranchDeletions(text).all[0] : BranchSummary_1.parseBranchSummary(text);
+        parser(stdOut, stdErr) {
+            if (isDelete) {
+                return parse_branch_delete_1.parseBranchDeletions(stdOut, stdErr).all[0];
+            }
+            return parse_branch_1.parseBranchSummary(stdOut, stdErr);
         },
     };
 }
@@ -7759,8 +8263,8 @@ function branchLocalTask() {
     return {
         format: 'utf-8',
         commands: ['branch', '-v'],
-        parser(text) {
-            return BranchSummary_1.parseBranchSummary(text);
+        parser(stdOut, stdErr) {
+            return parse_branch_1.parseBranchSummary(stdOut, stdErr);
         },
     };
 }
@@ -7769,30 +8273,72 @@ function deleteBranchesTask(branches, forceDelete = false) {
     return {
         format: 'utf-8',
         commands: ['branch', '-v', forceDelete ? '-D' : '-d', ...branches],
-        parser(text) {
-            return BranchDeleteSummary_1.parseBranchDeletions(text);
+        parser(stdOut, stdErr) {
+            return parse_branch_delete_1.parseBranchDeletions(stdOut, stdErr);
         },
         onError(exitCode, error, done, fail) {
-            if (exitCode === 1 && /not fully merged/.test(error)) {
-                return done(error);
+            if (!parse_branch_delete_1.hasBranchDeletionError(error, exitCode)) {
+                return fail(error);
             }
-            fail(error);
+            done(error);
         },
         concatStdErr: true,
     };
 }
 exports.deleteBranchesTask = deleteBranchesTask;
 function deleteBranchTask(branch, forceDelete = false) {
-    return {
+    const task = {
         format: 'utf-8',
         commands: ['branch', '-v', forceDelete ? '-D' : '-d', branch],
-        parser(text) {
-            return BranchDeleteSummary_1.parseBranchDeletions(text).branches[branch];
+        parser(stdOut, stdErr) {
+            return parse_branch_delete_1.parseBranchDeletions(stdOut, stdErr).branches[branch];
         },
+        onError(exitCode, error, _, fail) {
+            if (!parse_branch_delete_1.hasBranchDeletionError(error, exitCode)) {
+                return fail(error);
+            }
+            throw new git_response_error_1.GitResponseError(task.parser(error, ''), error);
+        },
+        concatStdErr: true,
     };
+    return task;
 }
 exports.deleteBranchTask = deleteBranchTask;
 //# sourceMappingURL=branch.js.map
+
+/***/ }),
+
+/***/ 738:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const BranchDeleteSummary_1 = __webpack_require__(436);
+const utils_1 = __webpack_require__(532);
+const deleteSuccessRegex = /(\S+)\s+\(\S+\s([^)]+)\)/;
+const deleteErrorRegex = /^error[^']+'([^']+)'/m;
+const parsers = [
+    new utils_1.LineParser(deleteSuccessRegex, (result, [branch, hash]) => {
+        const deletion = BranchDeleteSummary_1.branchDeletionSuccess(branch, hash);
+        result.all.push(deletion);
+        result.branches[branch] = deletion;
+    }),
+    new utils_1.LineParser(deleteErrorRegex, (result, [branch]) => {
+        const deletion = BranchDeleteSummary_1.branchDeletionFailure(branch);
+        result.errors.push(deletion);
+        result.all.push(deletion);
+        result.branches[branch] = deletion;
+    }),
+];
+exports.parseBranchDeletions = (stdOut) => {
+    return utils_1.parseStringResponse(new BranchDeleteSummary_1.BranchDeletionBatch(), parsers, stdOut);
+};
+function hasBranchDeletionError(data, processExitCode) {
+    return processExitCode === utils_1.ExitCodes.ERROR && deleteErrorRegex.test(data);
+}
+exports.hasBranchDeletionError = hasBranchDeletionError;
+//# sourceMappingURL=parse-branch-delete.js.map
 
 /***/ }),
 
@@ -7863,10 +8409,130 @@ module.exports.extend         = extend;
 
 /***/ }),
 
+/***/ 743:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const utils_1 = __webpack_require__(532);
+const promise_deferred_1 = __webpack_require__(435);
+const git_logger_1 = __webpack_require__(248);
+const logger = git_logger_1.createLogger('', 'scheduler');
+const createScheduledTask = (() => {
+    let id = 0;
+    return () => {
+        id++;
+        const { promise, done } = promise_deferred_1.createDeferred();
+        return {
+            promise,
+            done,
+            id,
+        };
+    };
+})();
+class Scheduler {
+    constructor(concurrency = 2) {
+        this.concurrency = concurrency;
+        this.pending = [];
+        this.running = [];
+        logger(`Constructed, concurrency=%s`, concurrency);
+    }
+    schedule() {
+        if (!this.pending.length || this.running.length >= this.concurrency) {
+            logger(`Schedule attempt ignored, pending=%s running=%s concurrency=%s`, this.pending.length, this.running.length, this.concurrency);
+            return;
+        }
+        const task = utils_1.append(this.running, this.pending.shift());
+        logger(`Attempting id=%s`, task.id);
+        task.done(() => {
+            logger(`Completing id=`, task.id);
+            utils_1.remove(this.running, task);
+            this.schedule();
+        });
+    }
+    next() {
+        const { promise, id } = utils_1.append(this.pending, createScheduledTask());
+        logger(`Scheduling id=%s`, id);
+        this.schedule();
+        return promise;
+    }
+}
+exports.Scheduler = Scheduler;
+//# sourceMappingURL=scheduler.js.map
+
+/***/ }),
+
 /***/ 747:
 /***/ (function(module) {
 
 module.exports = require("fs");
+
+/***/ }),
+
+/***/ 752:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var clean_1 = __webpack_require__(152);
+exports.CleanOptions = clean_1.CleanOptions;
+var check_is_repo_1 = __webpack_require__(787);
+exports.CheckRepoActions = check_is_repo_1.CheckRepoActions;
+var reset_1 = __webpack_require__(462);
+exports.ResetMode = reset_1.ResetMode;
+var git_construct_error_1 = __webpack_require__(645);
+exports.GitConstructError = git_construct_error_1.GitConstructError;
+var git_error_1 = __webpack_require__(861);
+exports.GitError = git_error_1.GitError;
+var git_response_error_1 = __webpack_require__(430);
+exports.GitResponseError = git_response_error_1.GitResponseError;
+var task_configuration_error_1 = __webpack_require__(427);
+exports.TaskConfigurationError = task_configuration_error_1.TaskConfigurationError;
+//# sourceMappingURL=api.js.map
+
+/***/ }),
+
+/***/ 756:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+class InitSummary {
+    constructor(bare, path, existing, gitDir) {
+        this.bare = bare;
+        this.path = path;
+        this.existing = existing;
+        this.gitDir = gitDir;
+    }
+}
+exports.InitSummary = InitSummary;
+const initResponseRegex = /^Init.+ repository in (.+)$/;
+const reInitResponseRegex = /^Rein.+ in (.+)$/;
+function parseInit(bare, path, text) {
+    const response = String(text).trim();
+    let result;
+    if ((result = initResponseRegex.exec(response))) {
+        return new InitSummary(bare, path, false, result[1]);
+    }
+    if ((result = reInitResponseRegex.exec(response))) {
+        return new InitSummary(bare, path, true, result[1]);
+    }
+    let gitDir = '';
+    const tokens = response.split(' ');
+    while (tokens.length) {
+        const token = tokens.shift();
+        if (token === 'in') {
+            gitDir = tokens.join(' ');
+            break;
+        }
+    }
+    return new InitSummary(bare, path, /^re/i.test(response), gitDir);
+}
+exports.parseInit = parseInit;
+//# sourceMappingURL=InitSummary.js.map
 
 /***/ }),
 
@@ -8039,6 +8705,169 @@ function plural(ms, msAbs, n, name) {
 
 /***/ }),
 
+/***/ 773:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const PullSummary_1 = __webpack_require__(76);
+const utils_1 = __webpack_require__(532);
+const parse_remote_messages_1 = __webpack_require__(388);
+const FILE_UPDATE_REGEX = /^\s*(.+?)\s+\|\s+\d+\s*(\+*)(-*)/;
+const SUMMARY_REGEX = /(\d+)\D+((\d+)\D+\(\+\))?(\D+(\d+)\D+\(-\))?/;
+const ACTION_REGEX = /^(create|delete) mode \d+ (.+)/;
+const parsers = [
+    new utils_1.LineParser(FILE_UPDATE_REGEX, (result, [file, insertions, deletions]) => {
+        result.files.push(file);
+        if (insertions) {
+            result.insertions[file] = insertions.length;
+        }
+        if (deletions) {
+            result.deletions[file] = deletions.length;
+        }
+    }),
+    new utils_1.LineParser(SUMMARY_REGEX, (result, [changes, , insertions, , deletions]) => {
+        if (insertions !== undefined || deletions !== undefined) {
+            result.summary.changes = +changes || 0;
+            result.summary.insertions = +insertions || 0;
+            result.summary.deletions = +deletions || 0;
+            return true;
+        }
+        return false;
+    }),
+    new utils_1.LineParser(ACTION_REGEX, (result, [action, file]) => {
+        utils_1.append(result.files, file);
+        utils_1.append((action === 'create') ? result.created : result.deleted, file);
+    }),
+];
+exports.parsePullDetail = (stdOut, stdErr) => {
+    return utils_1.parseStringResponse(new PullSummary_1.PullSummary(), parsers, `${stdOut}\n${stdErr}`);
+};
+exports.parsePullResult = (stdOut, stdErr) => {
+    return Object.assign(new PullSummary_1.PullSummary(), exports.parsePullDetail(stdOut, stdErr), parse_remote_messages_1.parseRemoteMessages(stdOut, stdErr));
+};
+//# sourceMappingURL=parse-pull.js.map
+
+/***/ }),
+
+/***/ 778:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const file_exists_1 = __webpack_require__(637);
+exports.NOOP = () => {
+};
+/**
+ * Returns either the source argument when it is a `Function`, or the default
+ * `NOOP` function constant
+ */
+function asFunction(source) {
+    return typeof source === 'function' ? source : exports.NOOP;
+}
+exports.asFunction = asFunction;
+/**
+ * Determines whether the supplied argument is both a function, and is not
+ * the `NOOP` function.
+ */
+function isUserFunction(source) {
+    return (typeof source === 'function' && source !== exports.NOOP);
+}
+exports.isUserFunction = isUserFunction;
+function splitOn(input, char) {
+    const index = input.indexOf(char);
+    if (index <= 0) {
+        return [input, ''];
+    }
+    return [
+        input.substr(0, index),
+        input.substr(index + 1),
+    ];
+}
+exports.splitOn = splitOn;
+function first(input, offset = 0) {
+    return isArrayLike(input) && input.length > offset ? input[offset] : undefined;
+}
+exports.first = first;
+function last(input, offset = 0) {
+    if (isArrayLike(input) && input.length > offset) {
+        return input[input.length - 1 - offset];
+    }
+}
+exports.last = last;
+function isArrayLike(input) {
+    return !!(input && typeof input.length === 'number');
+}
+function toLinesWithContent(input, trimmed = true) {
+    return input.split('\n')
+        .reduce((output, line) => {
+        const lineContent = trimmed ? line.trim() : line;
+        if (lineContent) {
+            output.push(lineContent);
+        }
+        return output;
+    }, []);
+}
+exports.toLinesWithContent = toLinesWithContent;
+function forEachLineWithContent(input, callback) {
+    return toLinesWithContent(input, true).map(line => callback(line));
+}
+exports.forEachLineWithContent = forEachLineWithContent;
+function folderExists(path) {
+    return file_exists_1.exists(path, file_exists_1.FOLDER);
+}
+exports.folderExists = folderExists;
+/**
+ * Adds `item` into the `target` `Array` or `Set` when it is not already present.
+ */
+function append(target, item) {
+    if (Array.isArray(target)) {
+        if (!target.includes(item)) {
+            target.push(item);
+        }
+    }
+    else {
+        target.add(item);
+    }
+    return item;
+}
+exports.append = append;
+function remove(target, item) {
+    if (Array.isArray(target)) {
+        const index = target.indexOf(item);
+        if (index >= 0) {
+            target.splice(index, 1);
+        }
+    }
+    else {
+        target.delete(item);
+    }
+    return item;
+}
+exports.remove = remove;
+exports.objectToString = Object.prototype.toString.call.bind(Object.prototype.toString);
+function asArray(source) {
+    return Array.isArray(source) ? source : [source];
+}
+exports.asArray = asArray;
+function asStringArray(source) {
+    return asArray(source).map(String);
+}
+exports.asStringArray = asStringArray;
+function asNumber(source, onNaN = 0) {
+    if (source == null) {
+        return onNaN;
+    }
+    const num = parseInt(source, 10);
+    return isNaN(num) ? onNaN : num;
+}
+exports.asNumber = asNumber;
+//# sourceMappingURL=util.js.map
+
+/***/ }),
+
 /***/ 784:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -8053,6 +8882,131 @@ if (typeof process === 'undefined' || process.type === 'renderer' || process.bro
 	module.exports = __webpack_require__(81);
 }
 
+
+/***/ }),
+
+/***/ 787:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const utils_1 = __webpack_require__(532);
+var CheckRepoActions;
+(function (CheckRepoActions) {
+    CheckRepoActions["BARE"] = "bare";
+    CheckRepoActions["IN_TREE"] = "tree";
+    CheckRepoActions["IS_REPO_ROOT"] = "root";
+})(CheckRepoActions = exports.CheckRepoActions || (exports.CheckRepoActions = {}));
+const onError = (exitCode, stdErr, done, fail) => {
+    if (exitCode === utils_1.ExitCodes.UNCLEAN && isNotRepoMessage(stdErr)) {
+        return done('false');
+    }
+    fail(stdErr);
+};
+const parser = (text) => {
+    return text.trim() === 'true';
+};
+function checkIsRepoTask(action) {
+    switch (action) {
+        case CheckRepoActions.BARE:
+            return checkIsBareRepoTask();
+        case CheckRepoActions.IS_REPO_ROOT:
+            return checkIsRepoRootTask();
+    }
+    const commands = ['rev-parse', '--is-inside-work-tree'];
+    return {
+        commands,
+        format: 'utf-8',
+        onError,
+        parser,
+    };
+}
+exports.checkIsRepoTask = checkIsRepoTask;
+function checkIsRepoRootTask() {
+    const commands = ['rev-parse', '--git-dir'];
+    return {
+        commands,
+        format: 'utf-8',
+        onError,
+        parser(path) {
+            return /^\.(git)?$/.test(path.trim());
+        },
+    };
+}
+exports.checkIsRepoRootTask = checkIsRepoRootTask;
+function checkIsBareRepoTask() {
+    const commands = ['rev-parse', '--is-bare-repository'];
+    return {
+        commands,
+        format: 'utf-8',
+        onError,
+        parser,
+    };
+}
+exports.checkIsBareRepoTask = checkIsBareRepoTask;
+function isNotRepoMessage(message) {
+    return /(Not a git repository|Kein Git-Repository)/i.test(message);
+}
+//# sourceMappingURL=check-is-repo.js.map
+
+/***/ }),
+
+/***/ 789:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+class LineParser {
+    constructor(regExp, useMatches) {
+        this.matches = [];
+        this.parse = (line, target) => {
+            this.resetMatches();
+            if (!this._regExp.every((reg, index) => this.addMatch(reg, index, line(index)))) {
+                return false;
+            }
+            return this.useMatches(target, this.prepareMatches()) !== false;
+        };
+        this._regExp = Array.isArray(regExp) ? regExp : [regExp];
+        if (useMatches) {
+            this.useMatches = useMatches;
+        }
+    }
+    // @ts-ignore
+    useMatches(target, match) {
+        throw new Error(`LineParser:useMatches not implemented`);
+    }
+    resetMatches() {
+        this.matches.length = 0;
+    }
+    prepareMatches() {
+        return this.matches;
+    }
+    addMatch(reg, index, line) {
+        const matched = line && reg.exec(line);
+        if (matched) {
+            this.pushMatch(index, matched);
+        }
+        return !!matched;
+    }
+    pushMatch(_index, matched) {
+        this.matches.push(...matched.slice(1));
+    }
+}
+exports.LineParser = LineParser;
+class RemoteLineParser extends LineParser {
+    addMatch(reg, index, line) {
+        return /^remote:\s/.test(String(line)) && super.addMatch(reg, index, line);
+    }
+    pushMatch(index, matched) {
+        if (index > 0 || matched.length > 1) {
+            super.pushMatch(index, matched);
+        }
+    }
+}
+exports.RemoteLineParser = RemoteLineParser;
+//# sourceMappingURL=line-parser.js.map
 
 /***/ }),
 
@@ -8448,6 +9402,226 @@ ListLogSummary.parse = function (text, splitter, fields) {
 
 /***/ }),
 
+/***/ 830:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const utils_1 = __webpack_require__(532);
+const parse_remote_messages_1 = __webpack_require__(388);
+function pushResultPushedItem(local, remote, status) {
+    const deleted = status.includes('deleted');
+    const tag = status.includes('tag') || /^refs\/tags/.test(local);
+    const alreadyUpdated = !status.includes('new');
+    return {
+        deleted,
+        tag,
+        branch: !tag,
+        new: !alreadyUpdated,
+        alreadyUpdated,
+        local,
+        remote,
+    };
+}
+const parsers = [
+    new utils_1.LineParser(/^Pushing to (.+)$/, (result, [repo]) => {
+        result.repo = repo;
+    }),
+    new utils_1.LineParser(/^updating local tracking ref '(.+)'/, (result, [local]) => {
+        result.ref = Object.assign(Object.assign({}, (result.ref || {})), { local });
+    }),
+    new utils_1.LineParser(/^[*-=]\s+([^:]+):(\S+)\s+\[(.+)]$/, (result, [local, remote, type]) => {
+        result.pushed.push(pushResultPushedItem(local, remote, type));
+    }),
+    new utils_1.LineParser(/^Branch '([^']+)' set up to track remote branch '([^']+)' from '([^']+)'/, (result, [local, remote, remoteName]) => {
+        result.branch = Object.assign(Object.assign({}, (result.branch || {})), { local,
+            remote,
+            remoteName });
+    }),
+    new utils_1.LineParser(/^([^:]+):(\S+)\s+([a-z0-9]+)\.\.([a-z0-9]+)$/, (result, [local, remote, from, to]) => {
+        result.update = {
+            head: {
+                local,
+                remote,
+            },
+            hash: {
+                from,
+                to,
+            },
+        };
+    }),
+];
+exports.parsePushResult = (stdOut, stdErr) => {
+    const pushDetail = exports.parsePushDetail(stdOut, stdErr);
+    const responseDetail = parse_remote_messages_1.parseRemoteMessages(stdOut, stdErr);
+    return Object.assign(Object.assign({}, pushDetail), responseDetail);
+};
+exports.parsePushDetail = (stdOut, stdErr) => {
+    return utils_1.parseStringResponse({ pushed: [] }, parsers, `${stdOut}\n${stdErr}`);
+};
+//# sourceMappingURL=parse-push.js.map
+
+/***/ }),
+
+/***/ 833:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const fs_1 = __webpack_require__(747);
+const debug_1 = __importDefault(__webpack_require__(784));
+const log = debug_1.default('@kwsites/file-exists');
+function check(path, isFile, isDirectory) {
+    log(`checking %s`, path);
+    try {
+        const stat = fs_1.statSync(path);
+        if (stat.isFile() && isFile) {
+            log(`[OK] path represents a file`);
+            return true;
+        }
+        if (stat.isDirectory() && isDirectory) {
+            log(`[OK] path represents a directory`);
+            return true;
+        }
+        log(`[FAIL] path represents something other than a file or directory`);
+        return false;
+    }
+    catch (e) {
+        if (e.code === 'ENOENT') {
+            log(`[FAIL] path is not accessible: %o`, e);
+            return false;
+        }
+        log(`[FATAL] %o`, e);
+        throw e;
+    }
+}
+/**
+ * Synchronous validation of a path existing either as a file or as a directory.
+ *
+ * @param {string} path The path to check
+ * @param {number} type One or both of the exported numeric constants
+ */
+function exists(path, type = exports.READABLE) {
+    return check(path, (type & exports.FILE) > 0, (type & exports.FOLDER) > 0);
+}
+exports.exists = exists;
+/**
+ * Constant representing a file
+ */
+exports.FILE = 1;
+/**
+ * Constant representing a folder
+ */
+exports.FOLDER = 2;
+/**
+ * Constant representing either a file or a folder
+ */
+exports.READABLE = exports.FILE + exports.FOLDER;
+//# sourceMappingURL=index.js.map
+
+/***/ }),
+
+/***/ 841:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var Type = __webpack_require__(945);
+
+var YAML_DATE_REGEXP = new RegExp(
+  '^([0-9][0-9][0-9][0-9])'          + // [1] year
+  '-([0-9][0-9])'                    + // [2] month
+  '-([0-9][0-9])$');                   // [3] day
+
+var YAML_TIMESTAMP_REGEXP = new RegExp(
+  '^([0-9][0-9][0-9][0-9])'          + // [1] year
+  '-([0-9][0-9]?)'                   + // [2] month
+  '-([0-9][0-9]?)'                   + // [3] day
+  '(?:[Tt]|[ \\t]+)'                 + // ...
+  '([0-9][0-9]?)'                    + // [4] hour
+  ':([0-9][0-9])'                    + // [5] minute
+  ':([0-9][0-9])'                    + // [6] second
+  '(?:\\.([0-9]*))?'                 + // [7] fraction
+  '(?:[ \\t]*(Z|([-+])([0-9][0-9]?)' + // [8] tz [9] tz_sign [10] tz_hour
+  '(?::([0-9][0-9]))?))?$');           // [11] tz_minute
+
+function resolveYamlTimestamp(data) {
+  if (data === null) return false;
+  if (YAML_DATE_REGEXP.exec(data) !== null) return true;
+  if (YAML_TIMESTAMP_REGEXP.exec(data) !== null) return true;
+  return false;
+}
+
+function constructYamlTimestamp(data) {
+  var match, year, month, day, hour, minute, second, fraction = 0,
+      delta = null, tz_hour, tz_minute, date;
+
+  match = YAML_DATE_REGEXP.exec(data);
+  if (match === null) match = YAML_TIMESTAMP_REGEXP.exec(data);
+
+  if (match === null) throw new Error('Date resolve error');
+
+  // match: [1] year [2] month [3] day
+
+  year = +(match[1]);
+  month = +(match[2]) - 1; // JS month starts with 0
+  day = +(match[3]);
+
+  if (!match[4]) { // no hour
+    return new Date(Date.UTC(year, month, day));
+  }
+
+  // match: [4] hour [5] minute [6] second [7] fraction
+
+  hour = +(match[4]);
+  minute = +(match[5]);
+  second = +(match[6]);
+
+  if (match[7]) {
+    fraction = match[7].slice(0, 3);
+    while (fraction.length < 3) { // milli-seconds
+      fraction += '0';
+    }
+    fraction = +fraction;
+  }
+
+  // match: [8] tz [9] tz_sign [10] tz_hour [11] tz_minute
+
+  if (match[9]) {
+    tz_hour = +(match[10]);
+    tz_minute = +(match[11] || 0);
+    delta = (tz_hour * 60 + tz_minute) * 60000; // delta in mili-seconds
+    if (match[9] === '-') delta = -delta;
+  }
+
+  date = new Date(Date.UTC(year, month, day, hour, minute, second, fraction));
+
+  if (delta) date.setTime(date.getTime() - delta);
+
+  return date;
+}
+
+function representYamlTimestamp(object /*, style*/) {
+  return object.toISOString();
+}
+
+module.exports = new Type('tag:yaml.org,2002:timestamp', {
+  kind: 'scalar',
+  resolve: resolveYamlTimestamp,
+  construct: constructYamlTimestamp,
+  instanceOf: Date,
+  represent: representYamlTimestamp
+});
+
+
+/***/ }),
+
 /***/ 842:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -8497,6 +9671,144 @@ module.exports = new Type('tag:yaml.org,2002:omap', {
   construct: constructYamlOmap
 });
 
+
+/***/ }),
+
+/***/ 843:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const git_response_error_1 = __webpack_require__(430);
+const functionNamesBuilderApi = [
+    'customBinary', 'env', 'outputHandler', 'silent',
+];
+const functionNamesPromiseApi = [
+    'add',
+    'addAnnotatedTag',
+    'addConfig',
+    'addRemote',
+    'addTag',
+    'binaryCatFile',
+    'branch',
+    'branchLocal',
+    'catFile',
+    'checkIgnore',
+    'checkIsRepo',
+    'checkout',
+    'checkoutBranch',
+    'checkoutLatestTag',
+    'checkoutLocalBranch',
+    'clean',
+    'clone',
+    'commit',
+    'cwd',
+    'deleteLocalBranch',
+    'deleteLocalBranches',
+    'diff',
+    'diffSummary',
+    'exec',
+    'fetch',
+    'getRemotes',
+    'init',
+    'listConfig',
+    'listRemote',
+    'log',
+    'merge',
+    'mergeFromTo',
+    'mirror',
+    'mv',
+    'pull',
+    'push',
+    'pushTags',
+    'raw',
+    'rebase',
+    'remote',
+    'removeRemote',
+    'reset',
+    'revert',
+    'revparse',
+    'rm',
+    'rmKeepLocal',
+    'show',
+    'stash',
+    'stashList',
+    'status',
+    'subModule',
+    'submoduleAdd',
+    'submoduleInit',
+    'submoduleUpdate',
+    'tag',
+    'tags',
+    'updateServerInfo'
+];
+const { gitInstanceFactory } = __webpack_require__(367);
+function gitP(...args) {
+    let git;
+    let chain = Promise.resolve();
+    try {
+        git = gitInstanceFactory(...args);
+    }
+    catch (e) {
+        chain = Promise.reject(e);
+    }
+    function builderReturn() {
+        return promiseApi;
+    }
+    function chainReturn() {
+        return chain;
+    }
+    const promiseApi = [...functionNamesBuilderApi, ...functionNamesPromiseApi].reduce((api, name) => {
+        const isAsync = functionNamesPromiseApi.includes(name);
+        const valid = isAsync ? asyncWrapper(name, git) : syncWrapper(name, git, api);
+        const alternative = isAsync ? chainReturn : builderReturn;
+        Object.defineProperty(api, name, {
+            enumerable: false,
+            configurable: false,
+            value: git ? valid : alternative,
+        });
+        return api;
+    }, {});
+    return promiseApi;
+    function asyncWrapper(fn, git) {
+        return function (...args) {
+            if (typeof args[args.length] === 'function') {
+                throw new TypeError('Promise interface requires that handlers are not supplied inline, ' +
+                    'trailing function not allowed in call to ' + fn);
+            }
+            return chain.then(function () {
+                return new Promise(function (resolve, reject) {
+                    const callback = (err, result) => {
+                        if (err) {
+                            return reject(toError(err));
+                        }
+                        resolve(result);
+                    };
+                    args.push(callback);
+                    git[fn].apply(git, args);
+                });
+            });
+        };
+    }
+    function syncWrapper(fn, git, api) {
+        return (...args) => {
+            git[fn](...args);
+            return api;
+        };
+    }
+}
+exports.gitP = gitP;
+function toError(error) {
+    if (error instanceof Error) {
+        return error;
+    }
+    if (typeof error === 'string') {
+        return new Error(error);
+    }
+    return new git_response_error_1.GitResponseError(error);
+}
+//# sourceMappingURL=promise-wrapped.js.map
 
 /***/ }),
 
@@ -8561,6 +9873,49 @@ function toNumber(input) {
 
 /***/ }),
 
+/***/ 861:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+/**
+ * The `GitError` is thrown when the underlying `git` process throws a
+ * fatal exception (eg an `ENOENT` exception when attempting to use a
+ * non-writable directory as the root for your repo), and acts as the
+ * base class for more specific errors thrown by the parsing of the
+ * git response or errors in the configuration of the task about to
+ * be run.
+ *
+ * When an exception is thrown, pending tasks in the same instance will
+ * not be executed. The recommended way to run a series of tasks that
+ * can independently fail without needing to prevent future tasks from
+ * running is to catch them individually:
+ *
+ * ```typescript
+ import { gitP, SimpleGit, GitError, PullResult } from 'simple-git';
+
+ function catchTask (e: GitError) {
+   return e.
+ }
+
+ const git = gitP(repoWorkingDir);
+ const pulled: PullResult | GitError = await git.pull().catch(catchTask);
+ const pushed: string | GitError = await git.pushTags().catch(catchTask);
+ ```
+ */
+class GitError extends Error {
+    constructor(task, message) {
+        super(message);
+        this.task = task;
+        Object.setPrototypeOf(this, new.target.prototype);
+    }
+}
+exports.GitError = GitError;
+//# sourceMappingURL=git-error.js.map
+
+/***/ }),
+
 /***/ 867:
 /***/ (function(module) {
 
@@ -8577,9 +9932,6 @@ module.exports = {
    DiffSummary: __webpack_require__(129),
    FetchSummary: __webpack_require__(662),
    ListLogSummary: __webpack_require__(816),
-   MergeSummary: __webpack_require__(656),
-   MoveSummary: __webpack_require__(466),
-   PullSummary: __webpack_require__(39),
 };
 
 
@@ -8780,6 +10132,69 @@ module.exports = new Type('tag:yaml.org,2002:seq', {
 
 /***/ }),
 
+/***/ 927:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const task_1 = __webpack_require__(614);
+const utils_1 = __webpack_require__(532);
+function cloneTask(repo, directory, customArgs) {
+    const commands = ['clone', ...customArgs];
+    if (typeof repo === 'string') {
+        commands.push(repo);
+    }
+    if (typeof directory === 'string') {
+        commands.push(directory);
+    }
+    return task_1.straightThroughStringTask(commands);
+}
+exports.cloneTask = cloneTask;
+function cloneMirrorTask(repo, directory, customArgs) {
+    utils_1.append(customArgs, '--mirror');
+    return cloneTask(repo, directory, customArgs);
+}
+exports.cloneMirrorTask = cloneMirrorTask;
+//# sourceMappingURL=clone.js.map
+
+/***/ }),
+
+/***/ 938:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const parse_push_1 = __webpack_require__(830);
+const utils_1 = __webpack_require__(532);
+function pushTagsTask(ref = {}, customArgs) {
+    utils_1.append(customArgs, '--tags');
+    return pushTask(ref, customArgs);
+}
+exports.pushTagsTask = pushTagsTask;
+function pushTask(ref = {}, customArgs) {
+    const commands = ['push', ...customArgs];
+    if (ref.branch) {
+        commands.splice(1, 0, ref.branch);
+    }
+    if (ref.remote) {
+        commands.splice(1, 0, ref.remote);
+    }
+    utils_1.remove(commands, '-v');
+    utils_1.append(commands, '--verbose');
+    utils_1.append(commands, '--porcelain');
+    return {
+        commands,
+        format: 'utf-8',
+        parser: parse_push_1.parsePushResult,
+    };
+}
+exports.pushTask = pushTask;
+//# sourceMappingURL=push.js.map
+
+/***/ }),
+
 /***/ 945:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -8910,43 +10325,117 @@ module.exports = new Type('tag:yaml.org,2002:pairs', {
 
 /***/ }),
 
-/***/ 964:
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ 954:
+/***/ (function(__unusedmodule, exports) {
 
+"use strict";
 
-var Git = __webpack_require__(71);
-
-module.exports = function (baseDir) {
-
-   var dependencies = __webpack_require__(970);
-
-   if (baseDir && !dependencies.exists(baseDir, dependencies.exists.FOLDER)) {
-       throw new Error("Cannot use simple-git on a directory that does not exist.");
-    }
-
-    return new Git(baseDir || process.cwd(), dependencies.childProcess(), dependencies.buffer());
+Object.defineProperty(exports, "__esModule", { value: true });
+const defaultOptions = {
+    binary: 'git',
+    maxConcurrentProcesses: 5,
 };
-
-
+function createInstanceConfig(...options) {
+    const baseDir = process.cwd();
+    const config = Object.assign(Object.assign({ baseDir }, defaultOptions), ...(options.filter(o => typeof o === 'object' && o)));
+    config.baseDir = config.baseDir || baseDir;
+    return config;
+}
+exports.createInstanceConfig = createInstanceConfig;
+//# sourceMappingURL=simple-git-options.js.map
 
 /***/ }),
 
-/***/ 970:
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ 958:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
-/**
- * Exports the utilities `simple-git` depends upon to allow for mocking during a test
- */
-module.exports = {
+"use strict";
 
-   buffer: function () { return __webpack_require__(293).Buffer; },
+Object.defineProperty(exports, "__esModule", { value: true });
+const git_logger_1 = __webpack_require__(248);
+const api_1 = __webpack_require__(752);
+class TasksPendingQueue {
+    constructor(logLabel = 'GitExecutor') {
+        this.logLabel = logLabel;
+        this._queue = new Map();
+    }
+    withProgress(task) {
+        return this._queue.get(task);
+    }
+    createProgress(task) {
+        const name = TasksPendingQueue.getName(task.commands[0]);
+        const logger = git_logger_1.createLogger(this.logLabel, name);
+        return {
+            task,
+            logger,
+            name,
+        };
+    }
+    push(task) {
+        const progress = this.createProgress(task);
+        progress.logger('Adding task to the queue, commands = %o', task.commands);
+        this._queue.set(task, progress);
+        return progress;
+    }
+    fatal(err) {
+        for (const [task, { logger }] of Array.from(this._queue.entries())) {
+            if (task === err.task) {
+                logger.info(`Failed %o`, err);
+                logger(`Fatal exception, any as-yet un-started tasks run through this executor will not be attempted`);
+            }
+            else {
+                logger.info(`A fatal exception occurred in a previous task, the queue has been purged: %o`, err.message);
+            }
+            this.complete(task);
+        }
+        if (this._queue.size !== 0) {
+            throw new Error(`Queue size should be zero after fatal: ${this._queue.size}`);
+        }
+    }
+    complete(task) {
+        const progress = this.withProgress(task);
+        if (progress) {
+            progress.logger.destroy();
+            this._queue.delete(task);
+        }
+    }
+    attempt(task) {
+        const progress = this.withProgress(task);
+        if (!progress) {
+            throw new api_1.GitError(undefined, 'TasksPendingQueue: attempt called for an unknown task');
+        }
+        progress.logger('Starting task');
+        return progress;
+    }
+    static getName(name = 'empty') {
+        return `task:${name}:${++TasksPendingQueue.counter}`;
+    }
+}
+exports.TasksPendingQueue = TasksPendingQueue;
+TasksPendingQueue.counter = 0;
+//# sourceMappingURL=tasks-pending-queue.js.map
 
-   childProcess: function () { return __webpack_require__(4); },
+/***/ }),
 
-   exists: __webpack_require__(265)
+/***/ 971:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
 
-};
+"use strict";
 
+Object.defineProperty(exports, "__esModule", { value: true });
+const parse_move_1 = __webpack_require__(162);
+const utils_1 = __webpack_require__(532);
+function moveTask(from, to) {
+    return {
+        commands: ['mv', '-v', ...utils_1.asArray(from), to],
+        format: 'utf-8',
+        parser(stdOut, stdErr) {
+            return parse_move_1.parseMoveResult(stdOut, stdErr);
+        }
+    };
+}
+exports.moveTask = moveTask;
+//# sourceMappingURL=move.js.map
 
 /***/ }),
 

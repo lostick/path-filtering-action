@@ -36,8 +36,25 @@ export async function getDiff(
   const git: SimpleGit = gitP(ROOT_DIR)
 
   const baseOptions = ['--no-color', `origin/${baseRef}...`]
-  const diff = await git.diffSummary([...baseOptions, ...extraOptions])
+  const allOptions = [...baseOptions, ...extraOptions]
+  core.info(`Git diff all options: ${allOptions}`)
 
+  try {
+    const diff = await git.diffSummary(allOptions)
+    console.log(`Git diffed files: ${diff.files}`)
+    core.info(`Git diffed files: ${diff.files}`)
+    return diff
+  } catch (err) {
+    // err.message - the string summary of the error
+    // err.stack - some stack trace detail
+    // err.git - where a parser was able to run, this is the parsed content
+
+    console.error(`Git diffed files resulted in ${err.message}`)
+    core.error(`Git diffed files resulted in ${err.message}`)
+  }
+
+  const diff = await git.diffSummary(allOptions)
+  core.info(`Git diffed files: ${diff.files}`)
   return diff
 }
 
@@ -48,7 +65,9 @@ export async function getDiff(
  */
 export function buildOptions(rule: object): string[] {
   const fullPaths: string[] = rule['paths'].map(el => `${ROOT_DIR}/${el}`)
-  return fullPaths.length ? ['--', ...fullPaths] : []
+  const res = fullPaths.length ? ['--', ...fullPaths] : []
+  core.info(`buildOptions: ${res}`)
+  return res
 }
 
 /**
@@ -63,6 +82,7 @@ export async function ruleProducesDiffChange(
 ): Promise<boolean> {
   const options = buildOptions(rule)
   const diff = await getDiff(baseRef, options)
+  core.info(`Diff changed: ${diff.changed}`)
   core.info(`Diff options: ${options.join(' ')}`)
 
   if (diff.changed > 0) {

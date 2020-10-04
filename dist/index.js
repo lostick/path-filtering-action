@@ -210,7 +210,6 @@ function run() {
                 if (rules.length > 0) {
                     for (const rule of rules) {
                         const match = yield finder_1.ruleProducesDiffChange(rule, baseRef);
-                        core.info(`Match for ${rule.paths} = ${match}`);
                         if (match) {
                             core.info('Git diff rule detected changes.');
                             core.exportVariable('DIFF_DETECTED', 'true');

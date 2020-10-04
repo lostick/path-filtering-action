@@ -25,7 +25,7 @@
   "author": "lostick",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.2.0",
+    "@actions/core": "^1.2.6",
     "simple-git": "^2.20.1"
   },
   "devDependencies": {

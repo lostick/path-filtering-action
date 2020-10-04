@@ -17,7 +17,6 @@ async function run(): Promise<void> {
       if (rules.length > 0) {
         for (const rule of rules) {
           const match = await ruleProducesDiffChange(rule, baseRef)
-          core.info(`Match for ${rule.paths} = ${match}`)
           if (match) {
             core.info('Git diff rule detected changes.')
             core.exportVariable('DIFF_DETECTED', 'true')

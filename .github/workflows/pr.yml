@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 100
     - run: |
         npm install
         npm run all
@@ -25,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 100
     - uses: ./
     - name: Ensure a change has been detected
       run: |
@@ -34,6 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 100
     - uses: ./
       with:
         base_ref: add-base-ref-input-base-test
@@ -45,6 +51,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 100
     - uses: ./
       with:
         config_file: __tests__/rules-match-all.yml

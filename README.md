@@ -23,6 +23,8 @@ The `setup go` step uses `DIFF_DETECTED` to determine whether to run or not
 ```yml
 steps:
 - uses: actions/checkout@v2
+  with:
+    fetch-depth: 100
 - uses: lostick/path-filtering-action@master
 - name: setup go
   if: env.DIFF_DETECTED == 'true'

@@ -9,7 +9,7 @@ on:
     - ready_for_review
   push:
     branches:
-    - '!master'
+    - '!main'
 
 jobs:
   # test npm scripts
@@ -22,7 +22,7 @@ jobs:
     - run: |
         npm install
         npm run all
-  # test against master branch
+  # test against main branch
   test-default-branch:
     runs-on: ubuntu-latest
     steps:
@@ -33,7 +33,7 @@ jobs:
     - name: Ensure a change has been detected
       run: |
         [ "${DIFF_DETECTED}" == 'true' ] || exit 1
-  # test against a base branch that's not master
+  # test against a base branch that's not main
   test-non-default-branch:
     runs-on: ubuntu-latest
     steps:

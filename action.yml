@@ -9,7 +9,7 @@ inputs:
     required: true
   base_ref:
     description: Base branch to compare to
-    default: master
+    default: main
     required: true
 
 runs:

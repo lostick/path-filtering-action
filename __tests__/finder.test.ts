@@ -7,7 +7,7 @@ import {DiffResult} from 'simple-git/typings/response'
 import fs from 'fs'
 import {YAMLException} from 'js-yaml'
 
-const BASE_REF = 'master'
+const BASE_REF = 'main'
 
 jest.mock('simple-git/promise')
 const simpleGit: any = _simpleGit

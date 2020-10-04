@@ -1,6 +1,6 @@
 # path-filtering-action
 
-[![GitHub Marketplace](./assets/marketplace-icon.svg)](https://github.com/marketplace/actions/path-filtering) ![master](https://github.com/lostick/path-filtering-action/workflows/master/badge.svg?branch=master)
+[![GitHub Marketplace](./assets/marketplace-icon.svg)](https://github.com/marketplace/actions/path-filtering) ![main](https://github.com/lostick/path-filtering-action/workflows/main/badge.svg?branch=main)
 
 A Github Action to filter paths based on git diff rules.
 
@@ -25,7 +25,7 @@ steps:
 - uses: actions/checkout@v2
   with:
     fetch-depth: 100
-- uses: lostick/path-filtering-action@master
+- uses: lostick/path-filtering-action@main
 - name: setup go
   if: env.DIFF_DETECTED == 'true'
   uses: actions/setup-go@v2
@@ -46,7 +46,7 @@ rules:
 | Input | Description | Default |
 | --- | --- | --- |
 | `config_file` | Diff rules file path. Can be set to a different file each time you call the action | `.github/rules.yml` |
-| `base_ref` | Base branch used by `git diff` command to compare the current branch's changes against | `master` |
+| `base_ref` | Base branch used by `git diff` command to compare the current branch's changes against | `main` |
 
 ## License
 

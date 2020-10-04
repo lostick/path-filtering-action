@@ -15,7 +15,7 @@ const ROOT_DIR = getRootDir()
 export async function fetchBranches(baseRef: string): Promise<void> {
   const git: SimpleGit = gitP(ROOT_DIR)
 
-  const fetchOptions = ['--no-tags', '--prune', '--depth=1', 'origin']
+  const fetchOptions = ['--no-tags', '--prune', '--depth=100', 'origin']
   const fetchRemotes = [`+refs/heads/${baseRef}:refs/remotes/origin/${baseRef}`]
 
   const options = [...fetchOptions, ...fetchRemotes]
@@ -48,7 +48,7 @@ export async function getDiff(
  */
 export function buildOptions(rule: object): string[] {
   const fullPaths: string[] = rule['paths'].map(el => `${ROOT_DIR}/${el}`)
-  return fullPaths.length ? ['--', ...fullPaths] : []
+  return fullPaths.length > 0 ? ['--', ...fullPaths] : []
 }
 
 /**
